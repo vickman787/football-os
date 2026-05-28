@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(OPENROUTER_API_KEY=invalid_key_for_test FOOTBALL_API_KEY='' PORT=5050 node -e ' *)"
+    ]
+  }
+}
