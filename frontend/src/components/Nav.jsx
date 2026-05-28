@@ -1,12 +1,17 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
+import { useWallet } from '../lib/WalletContext.jsx';
+import WalletMenu from './WalletMenu.jsx';
+import Logo from './Logo.jsx';
 
 export default function Nav() {
+  const { address } = useWallet();
+
   return (
     <header className="nav">
-      <div className="brand">
-        <span className="dot" />
-        <span>FOOTBALL · OS</span>
-      </div>
+      <Link to="/" className="brand brand--link" aria-label="Football OS home">
+        <Logo size={32} />
+        <span className="brand-text">FOOTBALL · OS</span>
+      </Link>
       <nav className="nav-links">
         <NavLink to="/" end>Console</NavLink>
         <NavLink to="/predictions">AI Predictions</NavLink>
@@ -14,9 +19,13 @@ export default function Nav() {
         <NavLink to="/leaderboard">Leaderboard</NavLink>
       </nav>
       <div className="nav-spacer" />
-      <NavLink to="/wallet" className="btn primary" style={{ textDecoration: 'none' }}>
-        Connect Wallet
-      </NavLink>
+      {address ? (
+        <WalletMenu variant="nav" />
+      ) : (
+        <NavLink to="/wallet" className="btn primary" style={{ textDecoration: 'none' }}>
+          Connect Wallet
+        </NavLink>
+      )}
     </header>
   );
 }

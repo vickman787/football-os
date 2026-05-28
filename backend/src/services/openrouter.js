@@ -14,7 +14,8 @@ no code fences. The JSON must match this shape exactly:
   "confidence": 0-100,
   "reasoning": "2-3 sentences explaining the call",
   "riskLevel": "Low" | "Medium" | "High",
-  "suggestedXPost": "<= 240 chars, punchy, no hashtags spam"
+  "suggestedXPost": "<= 240 chars, punchy, no hashtags spam",
+  "scorePrediction": "Most likely final score in the format H-A, e.g. 2-1"
 }`;
 
 function buildUserPrompt({ teamA, teamB, matchContext }) {
@@ -49,12 +50,17 @@ function normalize(obj) {
     confidence >= 70 ? 'Low' : confidence >= 50 ? 'Medium' : 'High'
   );
 
+  // Score prediction: validate "H-A" format, otherwise drop and let caller default.
+  let scorePrediction = String(obj.scorePrediction || '').trim();
+  if (scorePrediction && !/^\d+\s*-\s*\d+$/.test(scorePrediction)) scorePrediction = '';
+
   return {
     predictedWinner: String(obj.predictedWinner || '').trim() || 'Draw',
     confidence,
     reasoning: String(obj.reasoning || '').trim(),
     riskLevel,
     suggestedXPost: String(obj.suggestedXPost || '').trim().slice(0, 240),
+    scorePrediction,
   };
 }
 
@@ -69,6 +75,7 @@ export function mockAiPrediction({ teamA, teamB, matchContext }) {
     }`.trim(),
     riskLevel: confidence >= 70 ? 'Low' : confidence >= 60 ? 'Medium' : 'High',
     suggestedXPost: `Football OS call: ${winner} to win vs ${winner === teamA ? teamB : teamA}. Confidence ${confidence}%. Anchored onchain on X Layer.`,
+    scorePrediction: '2-1',
   };
 }
 

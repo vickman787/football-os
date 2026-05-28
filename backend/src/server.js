@@ -170,12 +170,29 @@ app.post('/api/ai-predict', async (req, res) => {
   if (!teamA || !teamB) {
     return res.status(400).json({ error: 'teamA_and_teamB_required' });
   }
-  const result = await aiPredict({
-    teamA: String(teamA).slice(0, 80),
-    teamB: String(teamB).slice(0, 80),
+  const teamAClean = String(teamA).slice(0, 80);
+  const teamBClean = String(teamB).slice(0, 80);
+
+  const { prediction, source, model } = await aiPredict({
+    teamA: teamAClean,
+    teamB: teamBClean,
     matchContext: matchContext ? String(matchContext).slice(0, 1000) : '',
   });
-  res.json(result);
+
+  // Derive a deterministic matchId from team names + today's date (UTC).
+  // Format: XXX-YYY-YYYY-MM-DD where X/Y are 3-letter codes from each team name.
+  const slug = (s) =>
+    String(s).normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'XXX';
+  const today = new Date().toISOString().slice(0, 10);
+  const matchId = `${slug(teamAClean)}-${slug(teamBClean)}-${today}`;
+
+  // Default scorePrediction to 2-1 if the model didn't supply one.
+  const scorePrediction = prediction.scorePrediction || '2-1';
+
+  // Flat shape — six spec fields at the top level. `source` / `model` are
+  // sibling metadata so the UI can show a "Live AI" vs "Fallback" chip.
+  res.json({ ...prediction, scorePrediction, matchId, source, model });
 });
 
 app.listen(PORT, () => {

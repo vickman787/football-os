@@ -1,23 +1,52 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
-import { useFetch } from '../lib/useFetch.js';
-import { Loading, ErrorState } from '../components/States.jsx';
+import { KEYS, read, subscribe } from '../lib/store.js';
 import FanBadges from '../components/FanBadges.jsx';
 import OnchainCard from '../components/OnchainCard.jsx';
 
+function loadList(key) {
+  const v = read(key, []);
+  return Array.isArray(v) ? v : [];
+}
+
 export default function Home() {
-  const matchesQ = useFetch(api.matches);
-  const signalsQ = useFetch(api.signals);
-  const leaderboardQ = useFetch(api.leaderboard);
+  // Real sources only:
+  //  - live fixtures from API-Football (when source === 'api-football')
+  //  - AI history saved by the user
+  //  - Onchain submissions saved by the user (counted as ranked predictors by unique wallet)
+  const [liveCount, setLiveCount] = useState(null); // null = loading, number = known
+  const [aiCount, setAiCount] = useState(loadList(KEYS.aiHistory).length);
+  const [subs, setSubs] = useState(loadList(KEYS.onchainSubmissions));
 
-  const allLoading = matchesQ.loading || signalsQ.loading || leaderboardQ.loading;
-  const anyError = matchesQ.error || signalsQ.error || leaderboardQ.error;
+  useEffect(() => {
+    const a = subscribe(KEYS.aiHistory, () => setAiCount(loadList(KEYS.aiHistory).length));
+    const b = subscribe(KEYS.onchainSubmissions, () => setSubs(loadList(KEYS.onchainSubmissions)));
+    return () => { a(); b(); };
+  }, []);
 
-  function refetchAll() {
-    matchesQ.refetch();
-    signalsQ.refetch();
-    leaderboardQ.refetch();
-  }
+  // Live fixtures (only counted when API-Football returns real data — mock is ignored).
+  useEffect(() => {
+    let alive = true;
+    async function fetchLive() {
+      try {
+        const r = await fetch(`${api.baseUrl}/api/live-matches`);
+        if (!r.ok) throw new Error(`live-matches ${r.status}`);
+        const j = await r.json();
+        if (!alive) return;
+        if (j?.source === 'api-football' && Array.isArray(j.data)) setLiveCount(j.data.length);
+        else setLiveCount(0);
+      } catch {
+        if (alive) setLiveCount(0);
+      }
+    }
+    fetchLive();
+    const id = setInterval(fetchLive, 30_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  const uniquePredictors = new Set(subs.map((s) => (s.wallet || '').toLowerCase()).filter(Boolean)).size;
+  const fmt = (v) => (v == null ? '—' : v);
 
   return (
     <>
@@ -31,45 +60,34 @@ export default function Home() {
             verifiable proof, so winning calls compound into reputation, not screenshots.
           </p>
           <div className="hero-cta">
-            <Link to="/wallet" className="btn primary">Connect Wallet</Link>
-            <Link to="/predictions" className="btn">AI Predictions</Link>
-            <Link to="/signals" className="btn ghost">Live Signals</Link>
+            <Link to="/predictions" className="btn primary">AI Predictions</Link>
+            <Link to="/signals" className="btn">Live Signals</Link>
+            <Link to="/leaderboard" className="btn ghost">Leaderboard</Link>
           </div>
         </div>
         <div className="hero-stats">
           <div className="stat">
-            <div className="v">{matchesQ.loading ? '—' : matchesQ.data?.matches?.length ?? 0}</div>
-            <div className="l">Active Matches</div>
+            <div className="v">{fmt(liveCount)}</div>
+            <div className="l">Live Matches</div>
           </div>
           <div className="stat">
-            <div className="v">{signalsQ.loading ? '—' : signalsQ.data?.signals?.length ?? 0}</div>
-            <div className="l">Live Signals</div>
+            <div className="v">{aiCount}</div>
+            <div className="l">AI Predictions</div>
           </div>
           <div className="stat">
-            <div className="v">{leaderboardQ.loading ? '—' : leaderboardQ.data?.leaderboard?.length ?? 0}</div>
-            <div className="l">Ranked Predictors</div>
+            <div className="v">{uniquePredictors}</div>
+            <div className="l">Onchain Predictors</div>
           </div>
           <div className="stat"><div className="v">X·196</div><div className="l">X Layer Mainnet</div></div>
         </div>
       </section>
 
-      {anyError && (
-        <div style={{ marginBottom: 16 }}>
-          <ErrorState error={anyError} onRetry={refetchAll} baseUrl={api.baseUrl} />
-        </div>
-      )}
-      {allLoading && !anyError && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <Loading label="Connecting to Football OS API" />
-        </div>
-      )}
-
       <section className="section-grid" style={{ marginBottom: 16 }}>
         <div className="card">
           <h3 className="card-title">// Prediction engine</h3>
           <p style={{ margin: 0, color: 'var(--text-dim)', lineHeight: 1.55 }}>
-            Ensemble of xG models, lineup signals, and live odds movement. Each call ships with
-            confidence, probabilities, and reasoning so you can argue with the model, not just trust it.
+            OpenRouter-powered AI generates a structured pick with confidence, reasoning, and a
+            ready-to-post X update. Every call is hashable and anchorable to X Layer.
           </p>
         </div>
         <OnchainCard />
@@ -83,15 +101,15 @@ export default function Home() {
         <div className="card">
           <h3 className="card-title">// Signal feed</h3>
           <p style={{ margin: 0, color: 'var(--text-dim)', lineHeight: 1.55 }}>
-            Lineup leaks, sharp odds movement, weather, onchain whale activity — all streamed
-            into one dashboard so you see edges the moment they form.
+            Real signals only — your AI predictions, your onchain submissions, and live fixtures
+            from API-Football. No filler entries.
           </p>
         </div>
         <div className="card">
           <h3 className="card-title">// Leaderboard</h3>
           <p style={{ margin: 0, color: 'var(--text-dim)', lineHeight: 1.55 }}>
-            Top predictors ranked by accuracy and ROI. Every pick is hash-anchored to X Layer,
-            so reputation is verifiable and portable.
+            Built dynamically from real onchain submissions. Rank reflects verified pick volume
+            and average declared confidence. Settlement-based ROI lands once the oracle is live.
           </p>
         </div>
       </section>

@@ -24,4 +24,5 @@ export const api = {
   signals: (opts) => get('/api/signals', opts),
   leaderboard: (opts) => get('/api/leaderboard', opts),
   predict: (payload, opts) => post('/api/predict', payload, opts),
+  aiPredict: (payload, opts) => post('/api/ai-predict', payload, opts),
 };

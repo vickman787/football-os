@@ -51,4 +51,4 @@ Then `npx hardhat run scripts/deploy.js --network xlayer`.
 | X Layer Mainnet  | 196     | https://rpc.xlayer.tech          |
 | X Layer Testnet  | 195     | https://testrpc.xlayer.tech      |
 
-Block explorer: https://www.okx.com/web3/explorer/xlayer
+Block explorer: https://www.oklink.com/xlayer
