@@ -86,7 +86,6 @@ export default function Home() {
             <div className="v">{uniquePredictors}</div>
             <div className="l">Onchain Predictors</div>
           </div>
-          <div className="stat"><div className="v">X·196</div><div className="l">X Layer Mainnet</div></div>
         </div>
       </section>
 
