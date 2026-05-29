@@ -1549,6 +1549,95 @@ table.lb tr:hover td { background: rgba(57,255,20,0.04); }
   table.lb { min-width: 640px; }
 }
 
+/* ─── Leaderboard: Coming Soon page ─────────────────────────────────── */
+.lb-status-row { margin-top: 10px; }
+
+.lb-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: rgba(57, 255, 20, 0.08);
+  color: var(--accent);
+  box-shadow: 0 0 16px rgba(57, 255, 20, 0.18);
+}
+
+.lb-status-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.lb-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.lb-feature {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.lb-feature:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-strong);
+  box-shadow: 0 0 24px rgba(57, 255, 20, 0.12);
+}
+
+.lb-feature-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(57, 255, 20, 0.1);
+  border: 1px solid var(--line-strong);
+}
+
+.lb-feature-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.lb-feature-desc {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.lb-note {
+  border-style: dashed;
+  border-color: var(--line-strong);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+@media (max-width: 720px) {
+  .lb-feature { padding: 16px; }
+  .lb-feature-icon { width: 36px; height: 36px; font-size: 16px; }
+}
+
 .onchain-ai-bridge {
   display: flex;
   align-items: center;
