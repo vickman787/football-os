@@ -123,9 +123,18 @@ app.get('/api/live-matches', async (_req, res) => {
   }
   try {
     const data = await getLiveMatches();
-    res.json({ source: 'api-football', data });
+    res.json({ source: 'api-sports', live: true, data });
   } catch (err) {
-    withFallback('live-matches', mockLiveMatches)(err, res);
+    const status = err.response?.status;
+    const apiError = err.response?.data;
+    console.warn('[api-sports] live-matches failed:', { status, apiError });
+    res.json({
+      source: 'mock',
+      reason: err.message,
+      status,
+      apiError,
+      data: mockLiveMatches,
+    });
   }
 });
 

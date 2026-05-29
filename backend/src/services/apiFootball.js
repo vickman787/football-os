@@ -113,7 +113,30 @@ function shapePrediction(p) {
 /* ---------- public surface ---------- */
 
 export async function getLiveMatches() {
-  const body = await call('/fixtures', { live: 'all' }, { ttl: 15_000 });
+  if (!isApiFootballEnabled()) {
+    throw Object.assign(new Error('API-Football key not configured'), { code: 'NO_KEY' });
+  }
+
+  const cacheKey = 'official:/fixtures?live=all';
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
+
+  const res = await axios.get('https://v3.football.api-sports.io/fixtures', {
+    timeout: 10_000,
+    params: { live: 'all' },
+    headers: {
+      'x-apisports-key': API_KEY,
+    },
+  });
+
+  const body = res.data;
+  if (Array.isArray(body?.errors) && body.errors.length) {
+    const err = new Error(`API-Sports error: ${JSON.stringify(body.errors)}`);
+    err.response = { status: res.status, data: body };
+    throw err;
+  }
+
+  cacheSet(cacheKey, body, 15_000);
   return (body.response || []).map(shapeFixture);
 }
 

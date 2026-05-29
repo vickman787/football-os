@@ -1,88 +1,79 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.20;
 
 /// @title PredictionProof
-/// @notice Anchors Football OS predictions onto X Layer (zkEVM, EVM-compatible).
-/// @dev Each prediction is stored as an immutable hash + metadata, indexed per predictor.
-///      The hash is computed off-chain over (matchId, pick, confidence, salt) and committed here.
+/// @notice Stores Football OS prediction proofs on X Layer.
 contract PredictionProof {
     struct Proof {
+        uint256 id;
         address predictor;
         bytes32 matchId;
         bytes32 pickHash;
-        uint16  confidenceBps; // 0-10000
-        uint64  publishedAt;
-        bool    settled;
-        bool    won;
+        uint16 confidenceBps;
+        uint256 timestamp;
     }
 
-    Proof[] public proofs;
-    mapping(address => uint256[]) public proofsByPredictor;
-    address public owner;
+    Proof[] private proofs;
+    mapping(address => uint256[]) private proofIdsByUser;
+
+    event PredictionPublished(
+        uint256 indexed id,
+        address indexed predictor,
+        bytes32 indexed matchId,
+        bytes32 pickHash,
+        uint16 confidenceBps,
+        uint256 timestamp
+    );
 
     event ProofPublished(
         uint256 indexed id,
         address indexed predictor,
         bytes32 indexed matchId,
         bytes32 pickHash,
-        uint16  confidenceBps
+        uint16 confidenceBps
     );
 
-    event ProofSettled(uint256 indexed id, bool won);
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "not_owner");
-        _;
-    }
-
-    constructor() {
-        owner = msg.sender;
-    }
-
-    /// @notice Publish a prediction proof. Anyone may publish their own predictions.
     function publish(bytes32 matchId, bytes32 pickHash, uint16 confidenceBps)
         external
         returns (uint256 id)
     {
-        require(confidenceBps <= 10_000, "bad_conf");
-        require(matchId != bytes32(0) && pickHash != bytes32(0), "empty");
+        require(confidenceBps <= 10_000, "confidence_too_high");
 
         id = proofs.length;
+        uint256 timestamp = block.timestamp;
+
         proofs.push(Proof({
+            id: id,
             predictor: msg.sender,
             matchId: matchId,
             pickHash: pickHash,
             confidenceBps: confidenceBps,
-            publishedAt: uint64(block.timestamp),
-            settled: false,
-            won: false
+            timestamp: timestamp
         }));
-        proofsByPredictor[msg.sender].push(id);
 
+        proofIdsByUser[msg.sender].push(id);
+
+        emit PredictionPublished(
+            id,
+            msg.sender,
+            matchId,
+            pickHash,
+            confidenceBps,
+            timestamp
+        );
         emit ProofPublished(id, msg.sender, matchId, pickHash, confidenceBps);
     }
 
-    /// @notice Settle a prediction. In MVP this is gated to the owner (oracle).
-    /// @dev Production version should use a decentralised oracle / signed result.
-    function settle(uint256 id, bool won) external onlyOwner {
-        require(id < proofs.length, "bad_id");
-        Proof storage p = proofs[id];
-        require(!p.settled, "settled");
-        p.settled = true;
-        p.won = won;
-        emit ProofSettled(id, won);
+    function getProof(uint256 id) external view returns (Proof memory) {
+        require(id < proofs.length, "proof_not_found");
+        return proofs[id];
     }
 
-    function totalProofs() external view returns (uint256) {
+    function getProofCount() external view returns (uint256) {
         return proofs.length;
     }
 
-    function proofIdsOf(address predictor) external view returns (uint256[] memory) {
-        return proofsByPredictor[predictor];
-    }
-
-    function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "zero");
-        owner = newOwner;
+    function getProofsByUser(address user) external view returns (uint256[] memory) {
+        return proofIdsByUser[user];
     }
 }
