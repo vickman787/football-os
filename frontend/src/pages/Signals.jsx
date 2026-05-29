@@ -78,11 +78,38 @@ function fixtureToSignal(f) {
   };
 }
 
+function formatCurrency(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+function formatDate(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatProbability(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  const pct = n <= 1 ? n * 100 : n;
+  return `${Math.round(pct)}%`;
+}
+
 export default function Signals() {
   const [ai, setAi] = useState(() => loadAi());
   const [onchain, setOnchain] = useState(() => loadOnchain());
   const [liveMatches, setLiveMatches] = useState([]);
   const [liveErr, setLiveErr] = useState(null);
+  const [marketEvents, setMarketEvents] = useState([]);
+  const [marketLoading, setMarketLoading] = useState(true);
+  const [marketErr, setMarketErr] = useState(null);
   const [, tick] = useState(0);
 
   // Sync from localStorage (same-tab + cross-tab).
@@ -113,6 +140,31 @@ export default function Signals() {
     fetchLive();
     const id = setInterval(fetchLive, 30_000);
     return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    async function fetchMarkets() {
+      setMarketLoading(true);
+      setMarketErr(null);
+      try {
+        const polymarketUrl = `${api.baseUrl}/api/polymarket/football-markets`;
+        console.log('Polymarket requested URL:', polymarketUrl);
+        const r = await fetch(polymarketUrl);
+        if (!r.ok) throw new Error(`polymarket ${r.status}`);
+        const data = await r.json();
+        if (alive) setMarketEvents(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (alive) {
+          setMarketEvents([]);
+          setMarketErr(e);
+        }
+      } finally {
+        if (alive) setMarketLoading(false);
+      }
+    }
+    fetchMarkets();
+    return () => { alive = false; };
   }, []);
 
   // Keep "Xs ago" labels fresh.
@@ -180,6 +232,72 @@ export default function Signals() {
           })}
         </div>
       )}
+
+      <section className="market-consensus">
+        <div className="ai-history-head">
+          <div>
+            <span className="eyebrow">// Market Consensus Signals</span>
+            <h3 className="card-title" style={{ margin: '6px 0 0' }}>Polymarket football probabilities</h3>
+          </div>
+          <span className="ai-history-count">{marketEvents.length}</span>
+        </div>
+
+        {marketLoading ? (
+          <div className="card empty-card">
+            <p className="ai-empty">Loading market consensus signals…</p>
+          </div>
+        ) : marketErr ? (
+          <div className="card empty-card">
+            <p className="ai-empty">Market consensus unavailable: {marketErr.message}</p>
+          </div>
+        ) : marketEvents.length === 0 ? (
+          <div className="card empty-card">
+            <p className="ai-empty">No active football markets found on Polymarket right now.</p>
+          </div>
+        ) : (
+          <div className="market-list">
+            {marketEvents.map((event) => (
+              <article key={event.id} className="market-card">
+                <div className="market-card-head">
+                  <div>
+                    <div className="market-title">{event.title}</div>
+                    <div className="market-meta">
+                      <span>{event.category || 'Football'}</span>
+                      <span>Ends {formatDate(event.endDate)}</span>
+                    </div>
+                  </div>
+                  <span className="chip">{event.source}</span>
+                </div>
+
+                <div className="market-metrics">
+                  <span>Volume {formatCurrency(event.volume)}</span>
+                  <span>Liquidity {formatCurrency(event.liquidity)}</span>
+                </div>
+
+                <div className="market-questions">
+                  {(event.markets || []).map((market) => (
+                    <div key={market.id} className="market-question">
+                      <div className="market-question-text">{market.question}</div>
+                      <div className="market-outcomes">
+                        {(market.outcomes || []).map((outcome, index) => (
+                          <span key={`${market.id}-${outcome}`} className="market-outcome">
+                            <span>{outcome}</span>
+                            <strong>{formatProbability(market.outcomePrices?.[index])}</strong>
+                          </span>
+                        ))}
+                      </div>
+                      <div className="market-metrics">
+                        <span>Volume {formatCurrency(market.volume)}</span>
+                        <span>Liquidity {formatCurrency(market.liquidity)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </>
   );
 }

@@ -12,6 +12,7 @@ import {
   getPredictionsFeed,
 } from './services/apiFootball.js';
 import { aiPredict, isOpenRouterEnabled } from './services/openrouter.js';
+import { getFootballMarkets } from './services/polymarket.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -171,6 +172,26 @@ app.get('/api/predictions-feed', async (req, res) => {
     withFallback('predictions-feed', mockPredictionsFeed.slice(0, limit))(err, res);
   }
 });
+
+/* ---------- Polymarket sentiment layer ---------- */
+
+async function footballMarketsHandler(req, res) {
+  console.log('[polymarket] received request:', req.originalUrl);
+  try {
+    const data = await getFootballMarkets();
+    res.json(data);
+  } catch (err) {
+    console.warn('[polymarket] football-markets failed:', err.response?.status, err.response?.data || err.message);
+    res.status(502).json({
+      error: 'polymarket_unavailable',
+      message: err.message,
+      status: err.response?.status,
+    });
+  }
+}
+
+app.get('/api/polymarket/football-markets', footballMarketsHandler);
+app.get('/polymarket/football-markets', footballMarketsHandler);
 
 /* ---------- OpenRouter AI engine ---------- */
 
