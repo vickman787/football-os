@@ -10,12 +10,19 @@ function loadList(key) {
   return Array.isArray(v) ? v : [];
 }
 
+function extractLiveMatches(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.matches)) return payload.matches;
+  return [];
+}
+
 export default function Home() {
   // Real sources only:
-  //  - live fixtures from API-Football (when source === 'api-football')
+  //  - live fixtures from the backend live-matches route
   //  - AI history saved by the user
   //  - Onchain submissions saved by the user (counted as ranked predictors by unique wallet)
-  const [liveCount, setLiveCount] = useState(null); // null = loading, number = known
+  const [liveMatches, setLiveMatches] = useState([]);
   const [aiCount, setAiCount] = useState(loadList(KEYS.aiHistory).length);
   const [subs, setSubs] = useState(loadList(KEYS.onchainSubmissions));
 
@@ -25,7 +32,7 @@ export default function Home() {
     return () => { a(); b(); };
   }, []);
 
-  // Live fixtures (only counted when API-Football returns real data — mock is ignored).
+  // Live fixtures from the backend live-matches route.
   useEffect(() => {
     let alive = true;
     async function fetchLive() {
@@ -34,10 +41,11 @@ export default function Home() {
         if (!r.ok) throw new Error(`live-matches ${r.status}`);
         const j = await r.json();
         if (!alive) return;
-        if (j?.source === 'api-football' && Array.isArray(j.data)) setLiveCount(j.data.length);
-        else setLiveCount(0);
+        const nextLiveMatches = extractLiveMatches(j);
+        console.log('Live matches loaded:', nextLiveMatches.length);
+        setLiveMatches(nextLiveMatches);
       } catch {
-        if (alive) setLiveCount(0);
+        if (alive) setLiveMatches([]);
       }
     }
     fetchLive();
@@ -46,7 +54,7 @@ export default function Home() {
   }, []);
 
   const uniquePredictors = new Set(subs.map((s) => (s.wallet || '').toLowerCase()).filter(Boolean)).size;
-  const fmt = (v) => (v == null ? '—' : v);
+  const liveCount = liveMatches.length;
 
   return (
     <>
@@ -67,7 +75,7 @@ export default function Home() {
         </div>
         <div className="hero-stats">
           <div className="stat">
-            <div className="v">{fmt(liveCount)}</div>
+            <div className="v">{liveCount}</div>
             <div className="l">Live Matches</div>
           </div>
           <div className="stat">

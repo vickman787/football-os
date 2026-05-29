@@ -33,6 +33,13 @@ function loadOnchain() {
   return Array.isArray(v) ? v : [];
 }
 
+function extractLiveMatches(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.matches)) return payload.matches;
+  return [];
+}
+
 function aiToSignal(p) {
   return {
     id: `ai-${p.id}`,
@@ -74,7 +81,7 @@ function fixtureToSignal(f) {
 export default function Signals() {
   const [ai, setAi] = useState(() => loadAi());
   const [onchain, setOnchain] = useState(() => loadOnchain());
-  const [live, setLive] = useState([]);
+  const [liveMatches, setLiveMatches] = useState([]);
   const [liveErr, setLiveErr] = useState(null);
   const [, tick] = useState(0);
 
@@ -93,17 +100,14 @@ export default function Signals() {
         const r = await fetch(`${api.baseUrl}/api/live-matches`);
         if (!r.ok) throw new Error(`live-matches ${r.status}`);
         const j = await r.json();
-        // Treat mock fallback as "no live data" — we want real signals only.
         if (alive) {
-          if (j?.source === 'api-football' && Array.isArray(j.data)) {
-            setLive(j.data);
-            setLiveErr(null);
-          } else {
-            setLive([]);
-          }
+          const nextLiveMatches = extractLiveMatches(j);
+          console.log('Live matches loaded:', nextLiveMatches.length);
+          setLiveMatches(nextLiveMatches);
+          setLiveErr(null);
         }
       } catch (e) {
-        if (alive) { setLive([]); setLiveErr(e); }
+        if (alive) { setLiveMatches([]); setLiveErr(e); }
       }
     }
     fetchLive();
@@ -120,7 +124,7 @@ export default function Signals() {
   const items = [
     ...ai.map(aiToSignal),
     ...onchain.map(onchainToSignal),
-    ...live.map(fixtureToSignal),
+    ...liveMatches.map(fixtureToSignal),
   ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   return (
