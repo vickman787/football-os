@@ -4,7 +4,7 @@
 // Real signals only:
 //   • AI predictions saved to localStorage (from the AI form)
 //   • Onchain submissions saved to localStorage (real txs)
-//   • Live fixtures from API-Football (when the backend has a working key)
+//   • Live fixtures from Sportmonks, with a labeled demo fallback when no live games are available
 // No mock entries. Empty state shown if none of the above produce a signal.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -64,13 +64,15 @@ function onchainToSignal(s) {
 }
 
 function fixtureToSignal(f) {
-  const h = f?.home?.name || 'Home';
-  const a = f?.away?.name || 'Away';
-  const goals = `${f?.home?.goals ?? 0}-${f?.away?.goals ?? 0}`;
-  const status = f?.status === 'HT' ? 'Half-time' : f?.elapsed != null ? `${f.elapsed}'` : (f?.status || 'Live');
+  const h = f?.homeTeam || f?.home?.name || 'Home';
+  const a = f?.awayTeam || f?.away?.name || 'Away';
+  const homeGoals = f?.score?.home ?? f?.home?.goals;
+  const awayGoals = f?.score?.away ?? f?.away?.goals;
+  const goals = homeGoals != null && awayGoals != null ? `${homeGoals}-${awayGoals}` : 'score pending';
+  const status = f?.status === 'HT' ? 'Half-time' : f?.elapsed != null ? `${f.elapsed}'` : (f?.status || 'Scheduled');
   return {
     id: `live-${f.id}`,
-    tag: 'LIVE',
+    tag: f?.status === 'NS' || f?.elapsed == null ? 'FIXTURE' : 'LIVE',
     match: `${h} vs ${a}`,
     text: `${status} · ${goals} · ${f.league || ''}`.trim(),
     confidence: null,
@@ -119,7 +121,7 @@ export default function Signals() {
     return () => { a(); b(); };
   }, []);
 
-  // Pull live fixtures from API-Football when available.
+  // Pull football fixtures from the Sportmonks-backed backend when available.
   useEffect(() => {
     let alive = true;
     async function fetchLive() {
@@ -185,9 +187,9 @@ export default function Signals() {
         <span className="eyebrow">// Signal Feed · Real-time</span>
         <h1 className="title">Real signals across your alpha graph</h1>
         <p className="subtitle">
-          Aggregates AI predictions, onchain proof submissions, and live fixtures from
-          API-Football. No filler entries — when nothing real has happened yet, the feed stays
-          empty.
+          Aggregates AI predictions, onchain proof submissions, and fixtures from Sportmonks.
+          When Sportmonks has no active live games, the backend keeps the dashboard alive with
+          clearly labeled demo fixtures.
         </p>
       </div>
 
@@ -196,7 +198,7 @@ export default function Signals() {
           <span className="eyebrow">// No signals yet</span>
           <p style={{ margin: '6px 0 0', color: 'var(--text-dim)', lineHeight: 1.55 }}>
             Generate an <a href="/predictions">AI prediction</a> or submit a proof onchain to seed
-            the feed. Live fixtures will also appear here when API-Football is configured.
+            the feed. Sportmonks fixtures will appear here when the backend has football data.
           </p>
           {liveErr && (
             <p style={{ margin: '12px 0 0', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-dim)' }}>

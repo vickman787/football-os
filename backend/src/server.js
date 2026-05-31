@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import axios from 'axios';
 import express from 'express';
 import cors from 'cors';
 import { matches } from './data/matches.js';
@@ -16,6 +17,13 @@ import { getFootballMarkets } from './services/polymarket.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const SPORTMONKS_BASE_URL = 'https://api.sportmonks.com/v3/football';
+const liveMatchesCache = {
+  data: null,
+  mode: 'livescores',
+  timestamp: 0,
+  ttlMs: 5 * 60 * 1000,
+};
 
 app.use(cors());
 app.use(express.json());
@@ -59,6 +67,216 @@ app.get('/api/signals', (_req, res) => {
 app.get('/api/leaderboard', (_req, res) => {
   res.json({ leaderboard });
 });
+
+/* ---------- Sportmonks live matches ---------- */
+
+function getLiveMatchesCacheAgeSeconds() {
+  return liveMatchesCache.timestamp
+    ? Math.floor((Date.now() - liveMatchesCache.timestamp) / 1000)
+    : 0;
+}
+
+function scoreFromSportmonksScores(scores, side) {
+  const score = scores?.find((item) => {
+    const location = item.score?.participant || item.participant?.meta?.location || item.description;
+    return String(location || '').toLowerCase() === side;
+  });
+
+  return score?.score?.goals ?? score?.score?.score ?? null;
+}
+
+function normalizeSportmonksLiveMatch(item) {
+  const participants = item.participants || [];
+  const home = participants.find((participant) => participant.meta?.location === 'home') || participants[0];
+  const away = participants.find((participant) => participant.meta?.location === 'away') || participants[1];
+  const [fallbackHomeName, fallbackAwayName] = String(item.name || 'Home vs Away').split(' vs ');
+
+  return {
+    id: String(item.id),
+    fixtureId: item.id,
+    league: item.league?.name || item.league_name || 'Football',
+    homeTeam: home?.name || fallbackHomeName || 'Home',
+    awayTeam: away?.name || fallbackAwayName || 'Away',
+    kickoff: item.starting_at || (item.starting_at_timestamp ? new Date(item.starting_at_timestamp * 1000).toISOString() : null),
+    market: 'AI Match Prediction',
+    status: item.state?.short_name || item.state?.name || item.result_info || 'Live',
+    elapsed: item.periods?.[0]?.minutes || null,
+    score: {
+      home: scoreFromSportmonksScores(item.scores, 'home'),
+      away: scoreFromSportmonksScores(item.scores, 'away'),
+    },
+  };
+}
+
+function isoDateOffset(days) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeMockLiveMatch(item) {
+  return {
+    id: String(item.id),
+    fixtureId: item.id,
+    league: item.league,
+    homeTeam: item.home?.name || 'Home',
+    awayTeam: item.away?.name || 'Away',
+    kickoff: item.kickoff,
+    market: 'AI Match Prediction',
+    status: item.status,
+    elapsed: item.elapsed,
+    score: {
+      home: item.home?.goals ?? null,
+      away: item.away?.goals ?? null,
+    },
+  };
+}
+
+async function fetchSportmonksLiveMatches() {
+  if (!process.env.SPORTMONKS_API_TOKEN) {
+    throw new Error('SPORTMONKS_API_TOKEN is not configured');
+  }
+
+  const response = await axios.get(`${SPORTMONKS_BASE_URL}/livescores`, {
+    params: {
+      api_token: process.env.SPORTMONKS_API_TOKEN,
+    },
+    timeout: 15000,
+  });
+
+  const liveMatches = (response.data?.data || []).map(normalizeSportmonksLiveMatch);
+
+  if (liveMatches.length > 0) {
+    return {
+      data: liveMatches,
+      mode: 'livescores',
+    };
+  }
+
+  const fixtureWindow = [-1, 0, 1, 2, 3, 4, 5, 6, 7];
+  const fixtureResponses = await Promise.all(
+    fixtureWindow.map(async (dayOffset) => {
+      const date = isoDateOffset(dayOffset);
+      const fixtureResponse = await axios.get(`${SPORTMONKS_BASE_URL}/fixtures/date/${date}`, {
+        params: {
+          api_token: process.env.SPORTMONKS_API_TOKEN,
+        },
+        timeout: 15000,
+      });
+
+      return {
+        date,
+        fixtures: fixtureResponse.data?.data || [],
+      };
+    })
+  );
+
+  const fixtures = fixtureResponses
+    .flatMap((item) => item.fixtures)
+    .sort((a, b) => {
+      const aTime = new Date(a.starting_at || a.starting_at_timestamp * 1000 || 0).getTime();
+      const bTime = new Date(b.starting_at || b.starting_at_timestamp * 1000 || 0).getTime();
+      return aTime - bTime;
+    })
+    .slice(0, 24)
+    .map(normalizeSportmonksLiveMatch);
+
+  return {
+    data: fixtures,
+    mode: fixtures.length > 0 ? 'fixtures-window' : 'fixtures-window-empty',
+  };
+}
+
+async function liveMatchesHandler(_req, res) {
+  const cacheAgeSeconds = getLiveMatchesCacheAgeSeconds();
+  const hasCache = Array.isArray(liveMatchesCache.data);
+  const cacheIsFresh = hasCache && cacheAgeSeconds * 1000 < liveMatchesCache.ttlMs;
+
+  if (cacheIsFresh) {
+    return res.json({
+      data: liveMatchesCache.data,
+      matches: liveMatchesCache.data,
+      cached: true,
+      stale: false,
+      cacheAgeSeconds,
+      source: 'Sportmonks',
+      mode: liveMatchesCache.mode,
+    });
+  }
+
+  try {
+    const { data, mode } = await fetchSportmonksLiveMatches();
+    liveMatchesCache.data = data;
+    liveMatchesCache.mode = mode;
+    liveMatchesCache.timestamp = Date.now();
+
+    if (data.length === 0) {
+      const fallbackMatches = mockLiveMatches.map(normalizeMockLiveMatch);
+
+      return res.json({
+        data: fallbackMatches,
+        matches: fallbackMatches,
+        cached: false,
+        stale: false,
+        cacheAgeSeconds: 0,
+        source: 'Sportmonks',
+        mode,
+        warning: 'Sportmonks returned no live, recent, or upcoming fixtures in the checked window; showing demo fallback.',
+      });
+    }
+
+    return res.json({
+      data,
+      matches: data,
+      cached: false,
+      stale: false,
+      cacheAgeSeconds: 0,
+      source: 'Sportmonks',
+      mode,
+    });
+  } catch (err) {
+    const upstreamStatus = err.response?.status;
+    const upstreamCode = err.code;
+    const upstreamMessage = err.response?.data?.message || err.response?.data?.error || err.message;
+    const sportmonksWarning = upstreamStatus
+      ? `Sportmonks request failed with status ${upstreamStatus}`
+      : upstreamCode
+        ? `Sportmonks request failed: ${upstreamCode}`
+        : upstreamMessage || 'Sportmonks is temporarily unavailable';
+
+    if (hasCache) {
+      return res.json({
+        data: liveMatchesCache.data,
+        matches: liveMatchesCache.data,
+        cached: true,
+        stale: true,
+        cacheAgeSeconds,
+        source: 'Sportmonks',
+        mode: liveMatchesCache.mode,
+        warning: sportmonksWarning,
+      });
+    }
+
+    const fallbackMatches = mockLiveMatches.map(normalizeMockLiveMatch);
+    const warning = process.env.SPORTMONKS_API_TOKEN
+      ? sportmonksWarning
+      : 'SPORTMONKS_API_TOKEN is not configured';
+
+    return res.json({
+      data: fallbackMatches,
+      matches: fallbackMatches,
+      cached: false,
+      stale: false,
+      cacheAgeSeconds: 0,
+      source: 'mock',
+      mode: 'mock-fallback',
+      warning: warning.replace('FOOTBALL_API_KEY', 'SPORTMONKS_API_TOKEN'),
+    });
+  }
+}
+
+app.get('/api/live-matches', liveMatchesHandler);
+app.get('/api/football/live', liveMatchesHandler);
 
 /* ---------- POST /api/predict ----------
  * Generates an AI prediction for a given matchId (or arbitrary fixture)
@@ -227,6 +445,7 @@ app.post('/api/ai-predict', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`[footballos-api] listening on http://localhost:${PORT}`);
-  console.log(`[api-football] mode: ${isApiFootballEnabled() ? 'LIVE (RapidAPI)' : 'MOCK (no key)'}`);
+  console.log(`[sportmonks]    live matches: ${process.env.SPORTMONKS_API_TOKEN ? 'LIVE' : 'MOCK (no key)'}`);
+  console.log(`[api-football]  legacy routes: ${isApiFootballEnabled() ? 'LIVE (RapidAPI)' : 'MOCK (no key)'}`);
   console.log(`[openrouter]   mode: ${isOpenRouterEnabled() ? 'LIVE' : 'MOCK (no key)'}`);
 });

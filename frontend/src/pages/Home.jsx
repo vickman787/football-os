@@ -17,6 +17,18 @@ function extractLiveMatches(payload) {
   return [];
 }
 
+function fixtureName(fixture) {
+  const home = fixture?.homeTeam || fixture?.home?.name || 'Home';
+  const away = fixture?.awayTeam || fixture?.away?.name || 'Away';
+  return `${home} vs ${away}`;
+}
+
+function fixtureScore(fixture) {
+  const home = fixture?.score?.home ?? fixture?.home?.goals;
+  const away = fixture?.score?.away ?? fixture?.away?.goals;
+  return home != null && away != null ? `${home}-${away}` : 'score pending';
+}
+
 export default function Home() {
   // Real sources only:
   //  - live fixtures from the backend live-matches route
@@ -100,6 +112,34 @@ export default function Home() {
         <OnchainCard />
       </section>
 
+      <section className="card" style={{ marginBottom: 16 }}>
+        <h3 className="card-title">// Football data</h3>
+        {liveMatches.length === 0 ? (
+          <p style={{ margin: 0, color: 'var(--text-dim)', lineHeight: 1.55 }}>
+            No football fixtures returned yet. Check that the backend is running on
+            <code> http://localhost:5000</code>.
+          </p>
+        ) : (
+          <div className="signal-list">
+            {liveMatches.slice(0, 3).map((fixture) => (
+              <div className="signal" key={fixture.id}>
+                <span className="signal-tag">{fixture.elapsed != null ? 'LIVE' : 'FIXTURE'}</span>
+                <div>
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-dim)', letterSpacing: '0.14em', marginBottom: 4 }}>
+                    {fixture.league || 'Football'}
+                  </div>
+                  <div className="signal-text">{fixtureName(fixture)}</div>
+                </div>
+                <div className="signal-meta">
+                  <span className="conf">{fixtureScore(fixture)}</span>
+                  <span>{fixture.status || 'Scheduled'}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       <section style={{ marginBottom: 16 }}>
         <FanBadges />
       </section>
@@ -108,8 +148,8 @@ export default function Home() {
         <div className="card">
           <h3 className="card-title">// Signal feed</h3>
           <p style={{ margin: 0, color: 'var(--text-dim)', lineHeight: 1.55 }}>
-            Real signals only — your AI predictions, your onchain submissions, and live fixtures
-            from API-Football. No filler entries.
+            Real signals only: your AI predictions, your onchain submissions, and football
+            fixtures from Sportmonks with a labeled demo fallback when no live games are available.
           </p>
         </div>
         <div className="card">
