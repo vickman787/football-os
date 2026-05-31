@@ -105,8 +105,8 @@ export default function Home() {
         <div className="card">
           <h3 className="card-title">// Prediction engine</h3>
           <p style={{ margin: 0, color: 'var(--text-dim)', lineHeight: 1.55 }}>
-            OpenRouter-powered AI generates a structured pick with confidence, reasoning, and a
-            ready-to-post X update. Every call is hashable and anchorable to X Layer.
+            AI generates a structured pick with confidence, reasoning, and a ready-to-post X
+            update. Every call is hashable and anchorable to X Layer.
           </p>
         </div>
         <OnchainCard />
@@ -116,8 +116,8 @@ export default function Home() {
         <h3 className="card-title">// Football data</h3>
         {liveMatches.length === 0 ? (
           <p style={{ margin: 0, color: 'var(--text-dim)', lineHeight: 1.55 }}>
-            No football fixtures returned yet. Check that the backend is running on
-            <code> http://localhost:5000</code>.
+            No football fixtures are available right now. Football OS will update this panel
+            automatically when the data feed returns live or upcoming matches.
           </p>
         ) : (
           <div className="signal-list">
