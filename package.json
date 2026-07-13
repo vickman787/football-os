@@ -1,6 +1,10 @@
 {
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\""
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.2",
+    "concurrently": "^10.0.3",
     "dotenv": "^17.4.2",
     "hardhat": "^2.28.0"
   },

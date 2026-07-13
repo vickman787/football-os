@@ -3,6 +3,7 @@ import Nav from './components/Nav.jsx';
 import Footer from './components/Footer.jsx';
 import LoadingScreen from './components/LoadingScreen.jsx';
 import Home from './pages/Home.jsx';
+import Matches from './pages/Matches.jsx';
 import Predictions from './pages/Predictions.jsx';
 import Signals from './pages/Signals.jsx';
 import Leaderboard from './pages/Leaderboard.jsx';
@@ -16,6 +17,7 @@ export default function App() {
       <main className="main">
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/matches" element={<Matches />} />
           <Route path="/predictions" element={<Predictions />} />
           <Route path="/signals" element={<Signals />} />
           <Route path="/leaderboard" element={<Leaderboard />} />

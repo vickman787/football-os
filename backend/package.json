@@ -8,9 +8,12 @@
     "start": "node src/server.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
     "axios": "^1.16.1",
     "cors": "2.8.5",
     "dotenv": "^16.6.1",
-    "express": "4.19.2"
+    "ethers": "^6.17.0",
+    "express": "4.19.2",
+    "openai": "^6.46.0"
   }
 }

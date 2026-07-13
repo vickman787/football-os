@@ -10,7 +10,7 @@ function shortAddr(a) {
 }
 
 export default function WalletMenu({ variant = 'nav' }) {
-  const { address, activeWallet, chainId, onXLayer, disconnect, copyAddress, switchNetwork } = useWallet();
+  const { address, activeWallet, chainId, onTargetNetwork, targetNetwork, disconnect, copyAddress, switchNetwork } = useWallet();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef(null);
@@ -46,7 +46,7 @@ export default function WalletMenu({ variant = 'nav' }) {
   return (
     <div className={`wallet-menu wallet-menu--${variant}`} ref={ref}>
       <button
-        className={`wallet-pill ${onXLayer ? '' : 'wallet-pill--warn'}`}
+        className={`wallet-pill ${onTargetNetwork ? '' : 'wallet-pill--warn'}`}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -62,16 +62,16 @@ export default function WalletMenu({ variant = 'nav' }) {
             <div className="wallet-dropdown-name">{activeWallet?.name || 'Wallet'}</div>
             <div className="wallet-dropdown-addr" title={address}>{address}</div>
             <div className="wallet-dropdown-net">
-              {onXLayer
-                ? <span className="chip">X LAYER · {chainId}</span>
+              {onTargetNetwork
+                ? <span className="chip">{targetNetwork?.chainName || 'X Layer'}</span>
                 : <span className="chip bad">WRONG NETWORK · {chainId}</span>}
             </div>
           </div>
 
           <div className="wallet-dropdown-actions">
-            {!onXLayer && (
+            {!onTargetNetwork && (
               <button className="wallet-action" onClick={() => { setOpen(false); switchNetwork(); }}>
-                Switch to X Layer
+                Switch to {targetNetwork?.chainName || 'X Layer'}
               </button>
             )}
             <button className="wallet-action" onClick={handleCopy}>

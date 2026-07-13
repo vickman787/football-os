@@ -1,73 +1,107 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Football OS · Leaderboard (Coming Soon)
-//
-// The public leaderboard ships with the Phase 2 reputation system. Until the
-// shared database + oracle settlement land, this page previews the feature
-// set so users know what's coming and keep submitting predictions onchain.
-//
-// No wallet dependency — the page renders identically connected or not.
-// ─────────────────────────────────────────────────────────────────────────────
-
-const FEATURES = [
-  {
-    title: 'Global Rankings',
-    desc: 'Compare performance across all Football OS users.',
-    icon: 'G',
-  },
-  {
-    title: 'Oracle Reputation',
-    desc: 'Build a verifiable football prediction identity.',
-    icon: 'O',
-  },
-  {
-    title: 'Accuracy Tracking',
-    desc: 'Historical prediction performance and hit rate.',
-    icon: 'A',
-  },
-  {
-    title: 'Onchain Proofs',
-    desc: 'Rankings backed by verifiable X Layer submissions.',
-    icon: 'X',
-  },
-  {
-    title: 'Prediction Streaks',
-    desc: 'Track consistency and winning runs.',
-    icon: 'S',
-  },
-];
+import { useEffect, useState } from 'react';
+import { api } from '../lib/api.js';
 
 export default function Leaderboard() {
+  const [data, setData] = useState({ mainnet: [], testnet: [] });
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+  const [activeTab, setActiveTab] = useState('mainnet');
+
+  useEffect(() => {
+    let alive = true;
+    async function fetchLb() {
+      try {
+        const r = await fetch(`${api.baseUrl}/api/leaderboard`);
+        if (!r.ok) throw new Error(`leaderboard ${r.status}`);
+        const j = await r.json();
+        if (alive) {
+          setData(j.leaderboard || { mainnet: [], testnet: [] });
+          setErr(null);
+        }
+      } catch (e) {
+        if (alive) setErr(e.message);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }
+    fetchLb();
+    const interval = setInterval(fetchLb, 15000);
+    return () => {
+      alive = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const currentData = activeTab === 'mainnet' ? data.mainnet : data.testnet;
+
   return (
     <>
       <div className="page-head">
-        <span className="eyebrow">// Leaderboard · Phase 2</span>
-        <h1 className="title">Public Leaderboard Coming Soon</h1>
+        <span className="eyebrow">// Leaderboard</span>
+        <h1 className="title">Global Rankings</h1>
         <p className="subtitle">
-          The Football OS leaderboard will rank predictors based on verified onchain submissions,
-          prediction accuracy, confidence scores, and long-term performance. Rankings will become
-          available after the public reputation system launches.
+          Rankings are built dynamically from real onchain submissions on X Layer. Rank reflects verified pick volume and average declared confidence.
         </p>
-        <div className="lb-status-row">
-          <span className="lb-status-badge">PHASE 2 FEATURE</span>
-        </div>
       </div>
 
-      <div className="lb-feature-grid">
-        {FEATURES.map((f) => (
-          <div key={f.title} className="card lb-feature">
-            <div className="lb-feature-icon">{f.icon}</div>
-            <h3 className="lb-feature-title">{f.title}</h3>
-            <p className="lb-feature-desc">{f.desc}</p>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <button 
+          onClick={() => setActiveTab('mainnet')}
+          style={{
+            background: activeTab === 'mainnet' ? 'var(--fg)' : 'transparent',
+            color: activeTab === 'mainnet' ? 'var(--bg)' : 'var(--text)',
+            border: '1px solid var(--border)', padding: '6px 16px', borderRadius: '6px', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 600
+          }}
+        >
+          Mainnet Leaderboard
+        </button>
+        <button 
+          onClick={() => setActiveTab('testnet')}
+          style={{
+            background: activeTab === 'testnet' ? 'var(--fg)' : 'transparent',
+            color: activeTab === 'testnet' ? 'var(--bg)' : 'var(--text)',
+            border: '1px solid var(--border)', padding: '6px 16px', borderRadius: '6px', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 600
+          }}
+        >
+          Testnet Leaderboard
+        </button>
+      </div>
+
+      <div className="card">
+        {loading ? (
+          <p className="ai-empty">Syncing with X Layer...</p>
+        ) : err ? (
+          <p className="ai-empty" style={{ color: 'var(--red)' }}>Error: {err}</p>
+        ) : currentData.length === 0 ? (
+          <p className="ai-empty">No predictions found on {activeTab} yet.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
+                  <th style={{ padding: '12px 8px' }}>Rank</th>
+                  <th style={{ padding: '12px 8px' }}>Predictor (Wallet)</th>
+                  <th style={{ padding: '12px 8px' }}>Total Proofs</th>
+                  <th style={{ padding: '12px 8px' }}>Avg Confidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentData.map((row) => (
+                  <tr key={row.wallet} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '12px 8px', fontWeight: 'bold' }}>#{row.rank}</td>
+                    <td style={{ padding: '12px 8px', fontFamily: 'var(--mono)', fontSize: '0.9rem' }}>
+                      {row.wallet.slice(0, 6)}...{row.wallet.slice(-4)}
+                    </td>
+                    <td style={{ padding: '12px 8px' }}>{row.totalPredictions}</td>
+                    <td style={{ padding: '12px 8px' }}>
+                      <span className="conf">{row.avgConfidence}%</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
-      </div>
-
-      <div className="card lb-note">
-        <span className="eyebrow">// Keep building reputation</span>
-        <p style={{ margin: '6px 0 0', color: 'var(--text-dim)', lineHeight: 1.6 }}>
-          Continue submitting predictions. Historical data will be used when the leaderboard
-          launches.
-        </p>
+        )}
       </div>
     </>
   );

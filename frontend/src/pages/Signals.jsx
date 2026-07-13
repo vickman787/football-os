@@ -112,6 +112,7 @@ export default function Signals() {
   const [marketEvents, setMarketEvents] = useState([]);
   const [marketLoading, setMarketLoading] = useState(true);
   const [marketErr, setMarketErr] = useState(null);
+  const [alphaSignals, setAlphaSignals] = useState([]);
   const [, tick] = useState(0);
 
   // Sync from localStorage (same-tab + cross-tab).
@@ -169,6 +170,21 @@ export default function Signals() {
     return () => { alive = false; };
   }, []);
 
+  useEffect(() => {
+    async function fetchAlpha() {
+      try {
+        const r = await fetch(`${api.baseUrl}/api/signals`);
+        if (r.ok) {
+          const j = await r.json();
+          setAlphaSignals(j.signals || []);
+        }
+      } catch (e) {}
+    }
+    fetchAlpha();
+    const id = setInterval(fetchAlpha, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   // Keep "Xs ago" labels fresh.
   useEffect(() => {
     const id = setInterval(() => tick((x) => x + 1), 1000);
@@ -179,6 +195,7 @@ export default function Signals() {
     ...ai.map(aiToSignal),
     ...onchain.map(onchainToSignal),
     ...liveMatches.map(fixtureToSignal),
+    ...alphaSignals,
   ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   return (

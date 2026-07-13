@@ -14,6 +14,7 @@ export default function Nav() {
       </Link>
       <nav className="nav-links">
         <NavLink to="/" end>Console</NavLink>
+        <NavLink to="/matches">Matches</NavLink>
         <NavLink to="/predictions">AI Predictions</NavLink>
         <NavLink to="/signals">Signal Feed</NavLink>
         <NavLink to="/leaderboard">Leaderboard</NavLink>

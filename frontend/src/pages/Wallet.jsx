@@ -1,19 +1,12 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// Football OS · Wallet page
-//
-// UI for connecting an EVM wallet (OKX recommended) and using X Layer.
-// Mainnet only — the deployed PredictionProof contract lives on chainId 196.
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { useState } from 'react';
 import { useWallet } from '../lib/WalletContext.jsx';
-import { X_LAYER } from '../lib/xlayer.js';
+import { X_LAYER, X_LAYER_TESTNET } from '../lib/xlayer.js';
 import WalletMenu from '../components/WalletMenu.jsx';
 import { api } from '../lib/api.js';
 
 export default function Wallet() {
   const {
-    wallets, activeWallet, address, chainId, onXLayer, busy, err,
+    wallets, activeWallet, address, chainId, onTargetNetwork, targetNetwork, setTargetNetwork, busy, err,
     connect, switchNetwork,
   } = useWallet();
 
@@ -28,6 +21,7 @@ export default function Wallet() {
       const r = await api.predict({
         wallet: address ?? '0x0000000000000000000000000000000000000000',
         matchId: 'epl-ars-mci',
+        chainId: targetNetwork.chainId, // Send the intended chainId to the backend
       });
       setProof({ ...r.prediction, ...r.proof });
     } catch (e) {
@@ -52,7 +46,33 @@ export default function Wallet() {
       <section className="section-grid">
         {/* ─── Connection panel ───────────────────────────────────────── */}
         <div className="card wallet-card">
-          <h3 className="card-title">// Connection</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 className="card-title" style={{ margin: 0 }}>// Connection</h3>
+            
+            {/* Network Toggle */}
+            <div style={{ display: 'flex', gap: '8px', background: 'var(--bg)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+              <button 
+                onClick={() => setTargetNetwork(X_LAYER)}
+                style={{
+                  background: targetNetwork.chainId === X_LAYER.chainId ? 'var(--fg)' : 'transparent',
+                  color: targetNetwork.chainId === X_LAYER.chainId ? 'var(--bg)' : 'var(--text)',
+                  border: 'none', padding: '4px 12px', borderRadius: '4px', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 600
+                }}
+              >
+                Mainnet
+              </button>
+              <button 
+                onClick={() => setTargetNetwork(X_LAYER_TESTNET)}
+                style={{
+                  background: targetNetwork.chainId === X_LAYER_TESTNET.chainId ? 'var(--fg)' : 'transparent',
+                  color: targetNetwork.chainId === X_LAYER_TESTNET.chainId ? 'var(--bg)' : 'var(--text)',
+                  border: 'none', padding: '4px 12px', borderRadius: '4px', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 600
+                }}
+              >
+                Testnet
+              </button>
+            </div>
+          </div>
 
           {address ? (
             // CONNECTED — show the wallet pill (click for copy/disconnect menu)
@@ -60,8 +80,8 @@ export default function Wallet() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <WalletMenu variant="page" />
                 <div className="wallet-state">
-                  {onXLayer
-                    ? <span className="chip">X LAYER · {chainId}</span>
+                  {onTargetNetwork
+                    ? <span className="chip">{targetNetwork.chainName.toUpperCase()}</span>
                     : <span className="chip bad">WRONG NETWORK · {chainId}</span>}
                   {activeWallet && (
                     <span className="chip" style={{ background: 'rgba(57,255,20,0.04)' }}>
@@ -76,12 +96,12 @@ export default function Wallet() {
                 <dt>Address</dt><dd style={{ wordBreak: 'break-all' }}>{address}</dd>
                 <dt>Chain Id</dt><dd>{chainId ?? '—'}</dd>
                 <dt>Network</dt>
-                <dd>{chainId === X_LAYER.chainId ? 'X Layer Mainnet' : chainId ? `Chain ${chainId}` : '—'}</dd>
+                <dd>{chainId === X_LAYER.chainId ? 'X Layer Mainnet' : chainId === X_LAYER_TESTNET.chainId ? 'X Layer Testnet' : chainId ? `Chain ${chainId}` : '—'}</dd>
               </dl>
 
-              {!onXLayer && (
-                <button className="btn primary" disabled={busy} onClick={switchNetwork}>
-                  Switch to X Layer
+              {!onTargetNetwork && (
+                <button className="btn primary" disabled={busy} onClick={() => switchNetwork()}>
+                  Switch to {targetNetwork.chainName}
                 </button>
               )}
             </>
@@ -140,14 +160,14 @@ export default function Wallet() {
           </p>
           <button
             className="btn primary"
-            disabled={proofBusy || (address && !onXLayer)}
+            disabled={proofBusy || (address && !onTargetNetwork)}
             onClick={publishDemoProof}
           >
-            Publish demo proof
+            Publish demo proof to {targetNetwork.chainName}
           </button>
-          {address && !onXLayer && (
+          {address && !onTargetNetwork && (
             <p style={{ margin: 0, fontSize: 12, color: 'var(--warn)' }}>
-              Switch to X Layer before publishing a proof.
+              Switch to {targetNetwork.chainName} before publishing a proof.
             </p>
           )}
           {proofErr && (
@@ -161,12 +181,12 @@ export default function Wallet() {
               <dt>Pick</dt><dd>{proof.pick}</dd>
               <dt>Network</dt><dd>{proof.network} · {proof.chainId}</dd>
               <dt>Hash</dt><dd>{proof.hash}</dd>
-              {proof.chainId === X_LAYER.chainId && (
+              {(proof.chainId === X_LAYER.chainId || proof.chainId === X_LAYER_TESTNET.chainId) && (
                 <>
                   <dt>Explorer</dt>
                   <dd>
                     <a
-                      href={`${X_LAYER.blockExplorerUrls[0]}/tx/${proof.hash}`}
+                      href={`${proof.chainId === X_LAYER.chainId ? X_LAYER.blockExplorerUrls[0] : X_LAYER_TESTNET.blockExplorerUrls[0]}/tx/${proof.hash}`}
                       target="_blank"
                       rel="noreferrer"
                     >

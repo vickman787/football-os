@@ -6,6 +6,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { KEYS, read, write, subscribe } from '../lib/store.js';
 
@@ -39,8 +40,9 @@ function riskClass(level) {
 }
 
 export default function AiPredictForm() {
-  const [teamA, setTeamA] = useState('');
-  const [teamB, setTeamB] = useState('');
+  const location = useLocation();
+  const [teamA, setTeamA] = useState(location.state?.teamA || '');
+  const [teamB, setTeamB] = useState(location.state?.teamB || '');
   const [matchContext, setMatchContext] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);

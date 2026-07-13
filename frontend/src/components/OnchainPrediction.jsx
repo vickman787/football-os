@@ -9,7 +9,6 @@ import { Link } from 'react-router-dom';
 import { useWallet } from '../lib/WalletContext.jsx';
 import { KEYS, read, push, subscribe } from '../lib/store.js';
 import {
-  CONTRACT_ADDRESS,
   submitOnchainPrediction,
   explorerTxUrl,
   explorerAddressUrl,
@@ -38,7 +37,7 @@ function timeAgo(iso) {
 }
 
 export default function OnchainPrediction() {
-  const { address, provider, onXLayer, switchNetwork } = useWallet();
+  const { address, provider, onTargetNetwork, targetNetwork, switchNetwork } = useWallet();
 
   const [matchId, setMatchId] = useState('');
   const [predictedWinner, setPredictedWinner] = useState('');
@@ -85,7 +84,7 @@ export default function OnchainPrediction() {
       setPhase('error');
       return;
     }
-    if (!onXLayer) {
+    if (!onTargetNetwork) {
       try { await switchNetwork(); } catch {}
       return;
     }
@@ -215,9 +214,9 @@ export default function OnchainPrediction() {
             </label>
 
             <div className="ai-actions">
-              {!onXLayer ? (
-                <button type="button" className="btn primary" onClick={switchNetwork}>
-                  Switch to X Layer
+              {!onTargetNetwork ? (
+                <button type="button" className="btn primary" onClick={() => switchNetwork()}>
+                  Switch to {targetNetwork?.chainName || 'X Layer'}
                 </button>
               ) : (
                 <button type="submit" className="btn primary" disabled={!canSubmit}>

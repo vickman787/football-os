@@ -10,10 +10,13 @@
 import { BrowserProvider, Contract, keccak256, toUtf8Bytes, getBytes } from 'ethers';
 import { X_LAYER } from './xlayer.js';
 
-// Deployed by the user; configurable via VITE_CONTRACT_ADDRESS in .env.
-export const CONTRACT_ADDRESS =
-  import.meta.env.VITE_CONTRACT_ADDRESS ||
-  '0x6a30290F48cA77B1aC30DaA9caAE3a0Cb3fa5d1A';
+const MAINNET_ADDRESS = '0x8BCdd0c4FE9F5B86E848e4251443cB089b74f53B';
+const TESTNET_ADDRESS = '0x5C5B0d40513af02Ab2F3164E6C7F413411B79f0d';
+
+export function getContractAddress(chainId) {
+  if (chainId === 195 || chainId === 1952) return TESTNET_ADDRESS;
+  return MAINNET_ADDRESS;
+}
 
 // ABI matches contracts/PredictionProof.sol — minimal surface used by the FE.
 export const PREDICTION_PROOF_ABI = [
@@ -70,12 +73,14 @@ export async function submitOnchainPrediction({
 
   const browserProvider = new BrowserProvider(provider);
   const network = await browserProvider.getNetwork();
-  if (Number(network.chainId) !== X_LAYER.chainId) {
-    throw new Error(`Wrong network. Expected X Layer (${X_LAYER.chainId}), got ${network.chainId}.`);
+  const chainId = Number(network.chainId);
+  if (chainId !== 196 && chainId !== 195 && chainId !== 1952) {
+    throw new Error(`Wrong network. Expected X Layer Mainnet/Testnet, got ${chainId}.`);
   }
 
   const signer = await browserProvider.getSigner();
-  const contract = new Contract(CONTRACT_ADDRESS, PREDICTION_PROOF_ABI, signer);
+  const contractAddress = getContractAddress(chainId);
+  const contract = new Contract(contractAddress, PREDICTION_PROOF_ABI, signer);
 
   const matchIdBytes = matchIdToBytes32(matchId);
   const pickHash = pickHashOf(predictedWinner, scorePrediction);
