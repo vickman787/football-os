@@ -7,8 +7,9 @@
 
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { api } from '../lib/api.js';
+import { api, getAiHistory, saveAiHistory } from '../lib/api.js';
 import { KEYS, read, write, subscribe } from '../lib/store.js';
+import { useWallet } from '../lib/WalletContext.jsx';
 
 const STORAGE_KEY = KEYS.aiHistory;
 const MAX_HISTORY = 10;
@@ -41,6 +42,7 @@ function riskClass(level) {
 
 export default function AiPredictForm() {
   const location = useLocation();
+  const { address } = useWallet();
   const [teamA, setTeamA] = useState(location.state?.teamA || '');
   const [teamB, setTeamB] = useState(location.state?.teamB || '');
   const [matchContext, setMatchContext] = useState('');
@@ -50,9 +52,39 @@ export default function AiPredictForm() {
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState(() => loadHistory());
 
+  // Load from Supabase if address exists
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchHistory() {
+      if (!address) {
+        setHistory(loadHistory());
+        return;
+      }
+      const data = await getAiHistory(address);
+      if (!cancelled && data && data.length > 0) {
+        const mapped = data.map(h => ({
+          id: h.id,
+          teamA: h.team_a,
+          teamB: h.team_b,
+          predictedWinner: h.predicted_winner,
+          confidence: h.confidence,
+          riskLevel: h.risk_level,
+          timestamp: h.timestamp
+        }));
+        setHistory(mapped);
+      } else if (!cancelled) {
+        setHistory(loadHistory());
+      }
+    }
+    fetchHistory();
+    return () => { cancelled = true; };
+  }, [address]);
+
   // Persist + cross-tab sync.
   useEffect(() => { saveHistory(history); }, [history]);
-  useEffect(() => subscribe(STORAGE_KEY, () => setHistory(loadHistory())), []);
+  useEffect(() => subscribe(STORAGE_KEY, () => {
+    if (!address) setHistory(loadHistory());
+  }), [address]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -88,6 +120,20 @@ export default function AiPredictForm() {
         riskLevel: res.riskLevel,
         timestamp: new Date().toISOString(),
       };
+      
+      if (address) {
+        saveAiHistory({
+          id: entry.id,
+          wallet_address: address,
+          team_a: entry.teamA,
+          team_b: entry.teamB,
+          predicted_winner: entry.predictedWinner,
+          confidence: entry.confidence,
+          risk_level: entry.riskLevel,
+          timestamp: entry.timestamp
+        });
+      }
+
       setHistory((prev) => [entry, ...prev].slice(0, MAX_HISTORY));
     } catch (e) {
       setErr(e.message || String(e));

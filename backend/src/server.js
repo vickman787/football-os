@@ -425,3 +425,36 @@ app.post('/api/predictions', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/api/ai-history', async (req, res) => {
+  try {
+    const { id, wallet_address, team_a, team_b, predicted_winner, confidence, risk_level, timestamp } = req.body;
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    await sb.from('ai_predictions_history').upsert({
+      id,
+      wallet_address,
+      team_a,
+      team_b,
+      predicted_winner,
+      confidence,
+      risk_level,
+      timestamp
+    });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/ai-history/:walletAddress', async (req, res) => {
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const { data, error } = await sb.from('ai_predictions_history')
+      .select('*')
+      .ilike('wallet_address', req.params.walletAddress)
+      .order('timestamp', { ascending: false })
+      .limit(20);
+    if (error) throw error;
+    res.json({ history: data || [] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
