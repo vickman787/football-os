@@ -6,7 +6,6 @@ import {
   switchToXLayer as switchToXLayerFn,
   subscribe,
   X_LAYER,
-  X_LAYER_TESTNET,
   DEFAULT_NETWORK
 } from './xlayer.js';
 import { KEYS, read, write, clear } from './store.js';
@@ -22,7 +21,6 @@ export function WalletProvider({ children }) {
   const [err, setErr] = useState(null);
   const [hydrating, setHydrating] = useState(true);
   
-  // Track the user's intended network (Mainnet vs Testnet)
   const [targetNetwork, setTargetNetworkState] = useState(DEFAULT_NETWORK);
 
   const userDisconnectedRef = useRef(false);
@@ -41,7 +39,7 @@ export function WalletProvider({ children }) {
       if (!session?.walletId) { setHydrating(false); return; }
 
       // Also restore their target network preference if we stored it
-      const savedNetwork = session.chainId === X_LAYER_TESTNET.chainId ? X_LAYER_TESTNET : X_LAYER;
+      const savedNetwork = X_LAYER;
       setTargetNetworkState(savedNetwork);
 
       for (let i = 0; i < 8 && !cancelled; i++) {
@@ -109,12 +107,12 @@ export function WalletProvider({ children }) {
     }
   }, [targetNetwork]);
 
-  const switchNetwork = useCallback(async (network = targetNetwork) => {
+  const switchNetwork = useCallback(async () => {
     if (!activeWallet?.provider) return;
     setErr(null);
     setBusy(true);
     try {
-      const cid = await switchToXLayerFn(activeWallet.provider, network);
+      const cid = await switchToXLayerFn(activeWallet.provider, targetNetwork);
       setChainId(cid);
     } catch (e) {
       setErr(e.message || String(e));

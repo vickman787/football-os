@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useWallet } from '../lib/WalletContext.jsx';
-import { X_LAYER, X_LAYER_TESTNET } from '../lib/xlayer.js';
+import { X_LAYER } from '../lib/xlayer.js';
 import WalletMenu from '../components/WalletMenu.jsx';
 import { api } from '../lib/api.js';
 
@@ -49,29 +49,7 @@ export default function Wallet() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 className="card-title" style={{ margin: 0 }}>// Connection</h3>
             
-            {/* Network Toggle */}
-            <div style={{ display: 'flex', gap: '8px', background: 'var(--bg)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-              <button 
-                onClick={() => setTargetNetwork(X_LAYER)}
-                style={{
-                  background: targetNetwork.chainId === X_LAYER.chainId ? 'var(--fg)' : 'transparent',
-                  color: targetNetwork.chainId === X_LAYER.chainId ? 'var(--bg)' : 'var(--text)',
-                  border: 'none', padding: '4px 12px', borderRadius: '4px', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 600
-                }}
-              >
-                Mainnet
-              </button>
-              <button 
-                onClick={() => setTargetNetwork(X_LAYER_TESTNET)}
-                style={{
-                  background: targetNetwork.chainId === X_LAYER_TESTNET.chainId ? 'var(--fg)' : 'transparent',
-                  color: targetNetwork.chainId === X_LAYER_TESTNET.chainId ? 'var(--bg)' : 'var(--text)',
-                  border: 'none', padding: '4px 12px', borderRadius: '4px', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 600
-                }}
-              >
-                Testnet
-              </button>
-            </div>
+
           </div>
 
           {address ? (
@@ -96,7 +74,7 @@ export default function Wallet() {
                 <dt>Address</dt><dd style={{ wordBreak: 'break-all' }}>{address}</dd>
                 <dt>Chain Id</dt><dd>{chainId ?? '—'}</dd>
                 <dt>Network</dt>
-                <dd>{chainId === X_LAYER.chainId ? 'X Layer Mainnet' : chainId === X_LAYER_TESTNET.chainId ? 'X Layer Testnet' : chainId ? `Chain ${chainId}` : '—'}</dd>
+                <dd>{chainId === X_LAYER.chainId ? 'X Layer Mainnet' : chainId ? `Chain ${chainId}` : '—'}</dd>
               </dl>
 
               {!onTargetNetwork && (

@@ -119,11 +119,10 @@ export default function OnchainPrediction() {
         score_prediction: scorePrediction.trim()
       };
       
-      // Save cleartext to backend so other devices can read the names instead of just the hash
       savePredictionCleartext({
         txHash: result.txHash,
         walletAddress: address,
-        network: onTargetNetwork ? 'mainnet' : 'testnet',
+        network: 'mainnet',
         matchId: matchId.trim(),
         predictedWinner: predictedWinner.trim(),
         scorePrediction: scorePrediction.trim(),

@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
 
 export default function Leaderboard() {
-  const [data, setData] = useState({ mainnet: [], testnet: [] });
+  const [data, setData] = useState({ mainnet: [] });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
-  const [activeTab, setActiveTab] = useState('mainnet');
 
   useEffect(() => {
     let alive = true;
@@ -15,7 +14,7 @@ export default function Leaderboard() {
         if (!r.ok) throw new Error(`leaderboard ${r.status}`);
         const j = await r.json();
         if (alive) {
-          setData(j.leaderboard || { mainnet: [], testnet: [] });
+          setData(j.leaderboard || { mainnet: [] });
           setErr(null);
         }
       } catch (e) {
@@ -32,7 +31,7 @@ export default function Leaderboard() {
     };
   }, []);
 
-  const currentData = activeTab === 'mainnet' ? data.mainnet : data.testnet;
+  const currentData = data.mainnet;
 
   return (
     <>
@@ -40,31 +39,8 @@ export default function Leaderboard() {
         <span className="eyebrow">// Leaderboard</span>
         <h1 className="title">Global Rankings</h1>
         <p className="subtitle">
-          Rankings are built dynamically from real onchain submissions on X Layer. Rank reflects verified pick volume and average declared confidence.
+          Rankings are built dynamically from real onchain submissions on X Layer Mainnet. Rank reflects verified pick volume and average declared confidence.
         </p>
-      </div>
-
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-        <button 
-          onClick={() => setActiveTab('mainnet')}
-          style={{
-            background: activeTab === 'mainnet' ? 'var(--fg)' : 'transparent',
-            color: activeTab === 'mainnet' ? 'var(--bg)' : 'var(--text)',
-            border: '1px solid var(--border)', padding: '6px 16px', borderRadius: '6px', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 600
-          }}
-        >
-          Mainnet Leaderboard
-        </button>
-        <button 
-          onClick={() => setActiveTab('testnet')}
-          style={{
-            background: activeTab === 'testnet' ? 'var(--fg)' : 'transparent',
-            color: activeTab === 'testnet' ? 'var(--bg)' : 'var(--text)',
-            border: '1px solid var(--border)', padding: '6px 16px', borderRadius: '6px', fontSize: '0.9rem', cursor: 'pointer', fontWeight: 600
-          }}
-        >
-          Testnet Leaderboard
-        </button>
       </div>
 
       <div className="card">
@@ -73,7 +49,7 @@ export default function Leaderboard() {
         ) : err ? (
           <p className="ai-empty" style={{ color: 'var(--red)' }}>Error: {err}</p>
         ) : currentData.length === 0 ? (
-          <p className="ai-empty">No predictions found on {activeTab} yet.</p>
+          <p className="ai-empty">No predictions found on mainnet yet.</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>

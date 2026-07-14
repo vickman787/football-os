@@ -11,10 +11,8 @@ import { BrowserProvider, Contract, keccak256, toUtf8Bytes, getBytes } from 'eth
 import { X_LAYER } from './xlayer.js';
 
 const MAINNET_ADDRESS = '0x8BCdd0c4FE9F5B86E848e4251443cB089b74f53B';
-const TESTNET_ADDRESS = '0x5C5B0d40513af02Ab2F3164E6C7F413411B79f0d';
 
 export function getContractAddress(chainId) {
-  if (chainId === 195 || chainId === 1952) return TESTNET_ADDRESS;
   return MAINNET_ADDRESS;
 }
 
@@ -74,8 +72,8 @@ export async function submitOnchainPrediction({
   const browserProvider = new BrowserProvider(provider);
   const network = await browserProvider.getNetwork();
   const chainId = Number(network.chainId);
-  if (chainId !== 196 && chainId !== 195 && chainId !== 1952) {
-    throw new Error(`Wrong network. Expected X Layer Mainnet/Testnet, got ${chainId}.`);
+  if (chainId !== 196) {
+    throw new Error(`Wrong network. Expected X Layer Mainnet, got ${chainId}.`);
   }
 
   const signer = await browserProvider.getSigner();
@@ -103,13 +101,12 @@ export async function submitOnchainPrediction({
 }
 
 /** OKLink explorer URL for a tx hash. */
-export function explorerTxUrl(txHash) {
-  return `${X_LAYER.blockExplorerUrls[0]}/tx/${txHash}`;
+export function explorerTxUrl(hash) {
+  return `https://www.oklink.com/xlayer/tx/${hash}`;
 }
 
-/** OKLink explorer URL for an address. */
-export function explorerAddressUrl(addr) {
-  return `${X_LAYER.blockExplorerUrls[0]}/address/${addr}`;
+export function explorerAddressUrl(address) {
+  return `https://www.oklink.com/xlayer/address/${address}`;
 }
 
 /** Cosmetic — hash bytes to length. */

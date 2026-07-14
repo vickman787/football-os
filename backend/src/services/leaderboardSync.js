@@ -4,9 +4,6 @@ import { createClient } from '@supabase/supabase-js';
 const RPC_URL_MAINNET = process.env.XLAYER_RPC_URL_MAINNET || 'https://rpc.xlayer.tech';
 const CONTRACT_ADDRESS_MAINNET = process.env.PREDICTION_CONTRACT_ADDRESS_MAINNET || '0x0000000000000000000000000000000000000000';
 
-const RPC_URL_TESTNET = process.env.XLAYER_RPC_URL_TESTNET || 'https://testrpc.xlayer.tech';
-const CONTRACT_ADDRESS_TESTNET = process.env.PREDICTION_CONTRACT_ADDRESS_TESTNET || '0x0000000000000000000000000000000000000000';
-
 const ABI = [
   "event PredictionPublished(uint256 indexed id, address indexed predictor, bytes32 indexed matchId, bytes32 pickHash, uint16 confidenceBps, uint256 timestamp)"
 ];
@@ -15,17 +12,12 @@ let providerMainnet;
 let contractMainnet;
 let lastSyncBlockMainnet = 0;
 
-let providerTestnet;
-let contractTestnet;
-let lastSyncBlockTestnet = 0;
-
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 export function isLeaderboardEnabled() {
-  return (CONTRACT_ADDRESS_MAINNET !== '0x0000000000000000000000000000000000000000' || 
-         CONTRACT_ADDRESS_TESTNET !== '0x0000000000000000000000000000000000000000') && supabase !== null;
+  return CONTRACT_ADDRESS_MAINNET !== '0x0000000000000000000000000000000000000000' && supabase !== null;
 }
 
 async function getLastSyncedBlock(network) {
@@ -109,15 +101,6 @@ export async function syncLeaderboard() {
     }
     lastSyncBlockMainnet = await syncNetwork(providerMainnet, contractMainnet, 'mainnet', lastSyncBlockMainnet);
   }
-
-  // Sync Testnet
-  if (CONTRACT_ADDRESS_TESTNET !== '0x0000000000000000000000000000000000000000') {
-    if (!providerTestnet) {
-      providerTestnet = new JsonRpcProvider(RPC_URL_TESTNET);
-      contractTestnet = new Contract(CONTRACT_ADDRESS_TESTNET, ABI, providerTestnet);
-    }
-    lastSyncBlockTestnet = await syncNetwork(providerTestnet, contractTestnet, 'testnet', lastSyncBlockTestnet);
-  }
 }
 
 async function computeLeaderboard(network) {
@@ -163,13 +146,18 @@ async function computeLeaderboard(network) {
 
 export async function getLeaderboard() {
   if (!supabase) {
-    return { mainnet: [], testnet: [] };
+    return { mainnet: [] };
   }
 
-  const [mainnet, testnet] = await Promise.all([
-    computeLeaderboard('mainnet'),
-    computeLeaderboard('testnet')
-  ]);
+  const mainnet = await computeLeaderboard('mainnet');
 
-  return { mainnet, testnet };
+  return { mainnet };
+}
+
+
+export async function getPredictionHistory(walletAddress) {
+  if (!supabase) return [];
+  const { data, error } = await supabase.from('onchain_predictions').select('*').ilike('wallet_address', walletAddress).order('timestamp', { ascending: false }).limit(20);
+  if (error || !data) return [];
+  return data;
 }

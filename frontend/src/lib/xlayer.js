@@ -26,20 +26,7 @@ export const X_LAYER = {
   blockExplorerUrls: ['https://www.oklink.com/xlayer'],
 };
 
-// X Layer Testnet — handy for hackathon demos before we deploy to mainnet.
-export const X_LAYER_TESTNET = {
-  chainId: 195,
-  chainIdHex: '0xc3', // 195 → 0xc3
-  chainName: 'X Layer Testnet',
-  nativeCurrency: { name: 'OKB', symbol: 'OKB', decimals: 18 },
-  rpcUrls: ['https://testrpc.xlayer.tech'],
-  blockExplorerUrls: ['https://www.oklink.com/xlayer-test'],
-};
-
-// Allow .env override (VITE_X_LAYER_CHAIN_ID=195 to demo on testnet).
-const ENV_CHAIN = Number(import.meta.env?.VITE_X_LAYER_CHAIN_ID);
-export const DEFAULT_NETWORK =
-  ENV_CHAIN === X_LAYER_TESTNET.chainId ? X_LAYER_TESTNET : X_LAYER;
+export const DEFAULT_NETWORK = X_LAYER;
 
 // ─── Wallet detection ────────────────────────────────────────────────────────
 //
