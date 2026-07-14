@@ -87,26 +87,15 @@ export async function submitOnchainPrediction({
   const confidenceBps = Math.max(0, Math.min(10_000, Math.round(Number(confidence) * 100)));
 
   const tx = await contract.publish(matchIdBytes, pickHash, confidenceBps);
-  const receipt = await tx.wait();
-
-  // Pull the ProofPublished event so we can show the proof id.
-  let proofId = null;
-  try {
-    for (const log of receipt.logs ?? []) {
-      try {
-        const parsed = contract.interface.parseLog(log);
-        if (parsed?.name === 'ProofPublished') {
-          proofId = parsed.args.id?.toString?.() ?? null;
-          break;
-        }
-      } catch {}
-    }
-  } catch {}
-
+  
+  // We bypass `tx.wait()` because injected wallets (like OKX/MetaMask) sometimes fail 
+  // to poll for receipts on X Layer Testnet, throwing 'could not coalesce error'.
+  // Returning immediately is faster and the backend will naturally index it!
+  
   return {
-    txHash: receipt.hash,
-    blockNumber: receipt.blockNumber,
-    proofId,
+    txHash: tx.hash || tx.transactionHash,
+    blockNumber: 0,
+    proofId: null,
     matchIdBytes,
     pickHash,
     confidenceBps,
