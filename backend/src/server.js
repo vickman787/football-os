@@ -104,8 +104,13 @@ app.get('/api/signals', async (_req, res) => {
   }
 });
 
-app.get('/api/leaderboard', (_req, res) => {
-  res.json({ leaderboard: getLeaderboard() }); // returns { mainnet: [], testnet: [] }
+app.get('/api/leaderboard', async (_req, res) => {
+  try {
+    const leaderboard = await getLeaderboard();
+    res.json({ leaderboard });
+  } catch (err) {
+    res.status(500).json({ error: 'leaderboard_error', message: err.message });
+  }
 });
 
 /* ---------- Sportmonks live matches ---------- */
