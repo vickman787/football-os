@@ -65,7 +65,7 @@ export async function aiPredict({ teamA, teamB, matchContext }) {
     throw new Error('NO_API_KEY_CONFIGURED');
   }
 
-  const provider = (process.env.AI_PROVIDER || 'openai').toLowerCase();
+  const provider = (process.env.AI_PROVIDER || 'anthropic').toLowerCase();
   
   try {
     let rawResponse = '';
@@ -75,7 +75,7 @@ export async function aiPredict({ teamA, teamB, matchContext }) {
 
     if (provider === 'openai' && process.env.OPENAI_API_KEY) {
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-      usedModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+      usedModel = process.env.OPENAI_MODEL || 'gpt-4o';
       
       const response = await openai.chat.completions.create({
         model: usedModel,
@@ -90,7 +90,7 @@ export async function aiPredict({ teamA, teamB, matchContext }) {
     } 
     else if (provider === 'anthropic' && process.env.ANTHROPIC_API_KEY) {
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      usedModel = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20240620';
+      usedModel = process.env.ANTHROPIC_MODEL || 'claude-3-opus-20240229';
       
       const response = await anthropic.messages.create({
         model: usedModel,
