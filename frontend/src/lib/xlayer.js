@@ -28,8 +28,8 @@ export const X_LAYER = {
 
 // X Layer Testnet — handy for hackathon demos before we deploy to mainnet.
 export const X_LAYER_TESTNET = {
-  chainId: 1952,
-  chainIdHex: '0x7a0', // 1952 → 0x7a0
+  chainId: 195,
+  chainIdHex: '0xc3', // 195 → 0xc3
   chainName: 'X Layer Testnet',
   nativeCurrency: { name: 'OKB', symbol: 'OKB', decimals: 18 },
   rpcUrls: ['https://testrpc.xlayer.tech'],
