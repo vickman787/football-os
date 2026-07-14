@@ -14,13 +14,11 @@ import {
   explorerAddressUrl,
   shortHash,
 } from '../lib/contract.js';
+import { getPredictionHistory, savePredictionCleartext } from '../lib/api.js';
 
 const MAX_HISTORY = 20;
 
-function loadHistory() {
-  const v = read(KEYS.onchainSubmissions, []);
-  return Array.isArray(v) ? v : [];
-}
+
 
 function loadAiLatest() {
   return read(KEYS.aiLatest, null);
@@ -48,11 +46,17 @@ export default function OnchainPrediction() {
   const [err, setErr] = useState(null);
   const [last, setLast] = useState(null); // { txHash, ... }
 
-  const [history, setHistory] = useState(() => loadHistory());
+  const [history, setHistory] = useState([]);
   const [aiLatest, setAiLatest] = useState(() => loadAiLatest());
   const [autoFilled, setAutoFilled] = useState(false);
 
-  useEffect(() => subscribe(KEYS.onchainSubmissions, () => setHistory(loadHistory())), []);
+  useEffect(() => {
+    if (!address) {
+      setHistory([]);
+      return;
+    }
+    getPredictionHistory(address).then(data => setHistory(data || []));
+  }, [address]);
 
   // Auto-fill when a fresh AI result lands. We only auto-fill if the form is
   // empty or still showing the previous AI auto-fill — never overwrite manual edits.
@@ -109,10 +113,25 @@ export default function OnchainPrediction() {
         predictedWinner: predictedWinner.trim(),
         scorePrediction: scorePrediction.trim(),
         confidence: Number(confidence),
-        wallet: address,
-        timestamp: new Date().toISOString(),
+        wallet_address: address,
+        timestamp: Date.now(),
+        predicted_winner: predictedWinner.trim(),
+        score_prediction: scorePrediction.trim()
       };
-      push(KEYS.onchainSubmissions, entry, MAX_HISTORY);
+      
+      // Save cleartext to backend so other devices can read the names instead of just the hash
+      savePredictionCleartext({
+        txHash: result.txHash,
+        walletAddress: address,
+        network: onTargetNetwork ? 'mainnet' : 'testnet',
+        matchId: matchId.trim(),
+        predictedWinner: predictedWinner.trim(),
+        scorePrediction: scorePrediction.trim(),
+        confidenceBps: Math.round(Number(confidence) * 100)
+      });
+
+      // Prepend instantly for UI responsiveness
+      setHistory(prev => [entry, ...prev].slice(0, MAX_HISTORY));
       setLast(entry);
       setPhase('success');
       // Reset form for the next submission, but keep last visible.
@@ -267,13 +286,13 @@ export default function OnchainPrediction() {
         ) : (
           <ul className="ai-history-list">
             {history.map((h) => (
-              <li key={h.id} className="ai-history-item">
+              <li key={h.tx_hash || h.id} className="ai-history-item">
                 <div className="ai-history-main">
                   <div className="ai-history-teams">
-                    <span>{h.matchId}</span>
+                    <span>{h.match_id || h.matchId}</span>
                   </div>
                   <div className="ai-history-meta">
-                    <span className="ai-history-winner">{h.predictedWinner}</span>
+                    <span className="ai-history-winner">{h.predicted_winner || h.predictedWinner}</span>
                     {h.scorePrediction && (
                       <>
                         <span className="ai-history-sep">·</span>
@@ -281,10 +300,10 @@ export default function OnchainPrediction() {
                       </>
                     )}
                     <span className="ai-history-sep">·</span>
-                    <span>{h.confidence}%</span>
+                    <span>{h.confidence_bps != null ? Math.round(h.confidence_bps / 100) : h.confidence}%</span>
                     <span className="ai-history-sep">·</span>
                     <a
-                      href={explorerTxUrl(h.txHash)}
+                      href={explorerTxUrl(h.tx_hash || h.txHash)}
                       target="_blank"
                       rel="noreferrer"
                       style={{ color: 'var(--accent)' }}

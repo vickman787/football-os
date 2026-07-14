@@ -26,3 +26,21 @@ export const api = {
   predict: (payload, opts) => post('/api/predict', payload, opts),
   aiPredict: (payload, opts) => post('/api/ai-predict', payload, opts),
 };
+
+export async function getPredictionHistory(address) {
+  if (!address) return [];
+  try {
+    const r = await fetch(BASE + '/api/predictions/' + address);
+    if (!r.ok) return [];
+    const json = await r.json();
+    return json.history || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function savePredictionCleartext(payload) {
+  try {
+    await fetch(BASE + '/api/predictions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  } catch (e) {}
+}

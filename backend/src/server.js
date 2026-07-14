@@ -8,7 +8,7 @@ import {
 } from './services/sportApi.js';
 import { aiPredict, isLlmEnabled } from './services/llm.js';
 import { getFootballMarkets } from './services/polymarket.js';
-import { getLeaderboard, syncLeaderboard, isLeaderboardEnabled } from './services/leaderboardSync.js';
+import { getLeaderboard, syncLeaderboard, isLeaderboardEnabled, getPredictionHistory } from './services/leaderboardSync.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -110,6 +110,15 @@ app.get('/api/leaderboard', async (_req, res) => {
     res.json({ leaderboard });
   } catch (err) {
     res.status(500).json({ error: 'leaderboard_error', message: err.message });
+  }
+});
+
+app.get('/api/predictions/:address', async (req, res) => {
+  try {
+    const history = await getPredictionHistory(req.params.address);
+    res.json({ history });
+  } catch (err) {
+    res.status(500).json({ error: 'history_error', message: err.message });
   }
 });
 
@@ -394,3 +403,25 @@ app.listen(PORT, () => {
   console.log(`[llm]           mode: ${isLlmEnabled() ? 'LIVE' : 'DISABLED (no key)'}`);
   console.log(`[leaderboard]   sync: ${isLeaderboardEnabled() ? 'ACTIVE' : 'DISABLED (no contract)'}`);
 });
+
+app.post('/api/predictions', async (req, res) => {
+  try {
+    const { txHash, walletAddress, network, matchId, predictedWinner, scorePrediction, confidenceBps } = req.body;
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+    await sb.from('onchain_predictions').upsert({
+      tx_hash: txHash,
+      wallet_address: walletAddress,
+      network: network,
+      block_number: 0,
+      match_id: matchId,
+      pick_hash: 'pending',
+      confidence_bps: confidenceBps,
+      timestamp: Date.now(),
+      predicted_winner: predictedWinner,
+      score_prediction: scorePrediction
+    }, { onConflict: 'tx_hash' });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
