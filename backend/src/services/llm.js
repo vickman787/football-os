@@ -17,8 +17,12 @@ no code fences. The JSON must match this shape exactly:
 }`;
 
 function buildUserPrompt({ teamA, teamB, matchContext }) {
+  // If it's a neutral venue, sort alphabetically to remove positional bias
+  const isNeutral = String(matchContext || '').toLowerCase().includes('neutral venue');
+  const [t1, t2] = isNeutral ? [teamA, teamB].sort() : [teamA, teamB];
+
   return [
-    `Match: ${teamA} vs ${teamB}`,
+    `Match: ${t1} vs ${t2}`,
     matchContext ? `Context: ${matchContext}` : 'Context: none provided',
     '',
     'Return only the JSON object.',
@@ -83,7 +87,7 @@ export async function aiPredict({ teamA, teamB, matchContext }) {
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.4,
+        temperature: 0.0,
         response_format: { type: 'json_object' }
       });
       rawResponse = response.choices[0]?.message?.content || '';
@@ -99,7 +103,7 @@ export async function aiPredict({ teamA, teamB, matchContext }) {
           { role: 'user', content: userPrompt }
         ],
         max_tokens: 1024,
-        temperature: 0.4,
+        temperature: 0.0,
       });
       rawResponse = response.content[0]?.text || '';
     } else {
