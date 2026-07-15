@@ -65,7 +65,7 @@ export async function aiPredict({ teamA, teamB, matchContext }) {
     throw new Error('NO_API_KEY_CONFIGURED');
   }
 
-  const provider = (process.env.AI_PROVIDER || 'anthropic').toLowerCase();
+  const provider = (process.env.AI_PROVIDER || 'openai').toLowerCase();
   
   try {
     let rawResponse = '';
