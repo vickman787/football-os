@@ -46,6 +46,7 @@ export default function AiPredictForm() {
   const [teamA, setTeamA] = useState(location.state?.teamA || '');
   const [teamB, setTeamB] = useState(location.state?.teamB || '');
   const [matchContext, setMatchContext] = useState('');
+  const [isNeutralVenue, setIsNeutralVenue] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [result, setResult] = useState(null);
@@ -94,10 +95,15 @@ export default function AiPredictForm() {
     setResult(null);
     setCopied(false);
     try {
+      let finalContext = matchContext.trim();
+      if (isNeutralVenue) {
+        finalContext = finalContext ? `${finalContext} (Note: This match is being played at a neutral venue)` : 'Note: This match is being played at a neutral venue';
+      }
+
       const res = await api.aiPredict({
         teamA: teamA.trim(),
         teamB: teamB.trim(),
-        matchContext: matchContext.trim(),
+        matchContext: finalContext,
       });
       setResult(res);
       // Make the latest result available to the Onchain form (auto-fill).
@@ -198,6 +204,16 @@ export default function AiPredictForm() {
               />
             </label>
           </div>
+          
+          <label className="ai-field" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '-8px', marginBottom: '16px' }}>
+            <input 
+              type="checkbox" 
+              checked={isNeutralVenue}
+              onChange={(e) => setIsNeutralVenue(e.target.checked)}
+              style={{ width: 'auto', cursor: 'pointer' }}
+            />
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>Neutral Venue (e.g. World Cup, Final)</span>
+          </label>
           <label className="ai-field">
             <span className="ai-label">Match Context (optional)</span>
             <textarea
