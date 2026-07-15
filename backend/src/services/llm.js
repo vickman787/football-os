@@ -90,7 +90,7 @@ export async function aiPredict({ teamA, teamB, matchContext }) {
     } 
     else if (provider === 'anthropic' && process.env.ANTHROPIC_API_KEY) {
       const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      usedModel = process.env.ANTHROPIC_MODEL || 'claude-3-opus-20240229';
+      usedModel = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20240620';
       
       const response = await anthropic.messages.create({
         model: usedModel,
