@@ -367,6 +367,26 @@ app.get('/polymarket/football-markets', footballMarketsHandler);
 /* ---------- AI engine ---------- */
 
 app.post('/api/ai-predict', async (req, res) => {
+  // x402 Payment Intercept for OKX.AI bots
+  const origin = req.headers.origin || req.headers.referer || '';
+  const isFrontend = origin.includes('football-os') || origin.includes('localhost') || origin.includes('vercel.app');
+  const auth = req.headers.authorization;
+  const isL402 = auth && (auth.startsWith('L402') || auth.startsWith('x402'));
+
+  if (!isFrontend && !isL402) {
+    return res.status(402).json({
+      error: 'Payment Required',
+      accepts: [
+        {
+          network: "196",
+          token: "0x0000000000000000000000000000000000000000",
+          amount: "1000000000000000",
+          address: "0x0000000000000000000000000000000000000000" // Placeholder payout wallet
+        }
+      ]
+    });
+  }
+
   const { teamA, teamB, matchContext } = req.body || {};
   if (!teamA || !teamB) {
     return res.status(400).json({ error: 'teamA_and_teamB_required' });
