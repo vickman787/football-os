@@ -366,12 +366,16 @@ app.get('/polymarket/football-markets', footballMarketsHandler);
 
 /* ---------- AI engine ---------- */
 
-app.post('/api/ai-predict', async (req, res) => {
+app.all('/api/ai-predict', async (req, res) => {
   // x402 Payment Intercept for OKX.AI bots
   const origin = req.headers.origin || req.headers.referer || '';
   const isFrontend = origin.includes('football-os') || origin.includes('localhost') || origin.includes('vercel.app');
   const auth = req.headers.authorization;
   const isL402 = auth && (auth.startsWith('L402') || auth.startsWith('x402'));
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
 
   if (!isFrontend && !isL402) {
     return res.status(402).json({
@@ -379,12 +383,16 @@ app.post('/api/ai-predict', async (req, res) => {
       accepts: [
         {
           network: "196",
-          token: "0x0000000000000000000000000000000000000000",
-          amount: "1000000000000000",
-          address: "0x0000000000000000000000000000000000000000" // Placeholder payout wallet
+          token: "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+          amount: "1000000",
+          payTo: "0xE8f96910a685605A81864CA79904456DF9112D59"
         }
       ]
     });
+  }
+
+  if (req.method !== 'POST') {
+    return res.json({ ok: true, message: 'Endpoint active. POST match data for prediction.' });
   }
 
   const { teamA, teamB, matchContext } = req.body || {};
