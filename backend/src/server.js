@@ -397,9 +397,54 @@ app.all('/api/ai-predict', async (req, res) => {
     return res.json({ ok: true, message: 'Endpoint active. POST match data for prediction.' });
   }
 
-  const { teamA, teamB, matchContext } = req.body || {};
+  // MCP compatibility: handle tools/list discovery
+  if (req.body?.method === 'tools/list') {
+    return res.json({
+      jsonrpc: "2.0",
+      id: req.body.id,
+      result: {
+        tools: [
+          {
+            name: "ai_predict",
+            description: "Get AI match predictions, expected goals, and confidence scores for a football match.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                teamA: { type: "string", description: "Home team name" },
+                teamB: { type: "string", description: "Away team name" },
+                matchContext: { type: "string", description: "Optional context" }
+              },
+              required: ["teamA", "teamB"]
+            }
+          }
+        ]
+      }
+    });
+  }
+
+  // Parse arguments depending on if it's an MCP tool call or standard REST
+  let teamA, teamB, matchContext;
+  let isMcpCall = false;
+  let mcpId = null;
+
+  if (req.body?.method === 'tools/call' && req.body?.params?.arguments) {
+    isMcpCall = true;
+    mcpId = req.body.id;
+    teamA = req.body.params.arguments.teamA;
+    teamB = req.body.params.arguments.teamB;
+    matchContext = req.body.params.arguments.matchContext;
+  } else {
+    teamA = req.body?.teamA;
+    teamB = req.body?.teamB;
+    matchContext = req.body?.matchContext;
+  }
+
   if (!teamA || !teamB) {
-    return res.status(400).json({ error: 'teamA_and_teamB_required' });
+    const errorMsg = 'teamA_and_teamB_required';
+    if (isMcpCall) {
+      return res.json({ jsonrpc: "2.0", id: mcpId, error: { code: -32602, message: errorMsg } });
+    }
+    return res.status(400).json({ error: errorMsg });
   }
   const teamAClean = String(teamA).slice(0, 80);
   const teamBClean = String(teamB).slice(0, 80);
@@ -418,10 +463,30 @@ app.all('/api/ai-predict', async (req, res) => {
     const matchId = `${slug(teamAClean)}-${slug(teamBClean)}-${today}`;
 
     const scorePrediction = prediction.scorePrediction || '2-1';
+    
+    const resultObj = { ...prediction, scorePrediction, matchId, source, model };
 
-    res.json({ ...prediction, scorePrediction, matchId, source, model });
+    if (isMcpCall) {
+      return res.json({
+        jsonrpc: "2.0",
+        id: mcpId,
+        result: {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(resultObj)
+            }
+          ]
+        }
+      });
+    }
+
+    res.json(resultObj);
   } catch (err) {
     console.error('[ai-predict] error:', err.message);
+    if (isMcpCall) {
+      return res.json({ jsonrpc: "2.0", id: mcpId, error: { code: -32603, message: err.message } });
+    }
     res.status(502).json({ error: 'ai_prediction_failed', message: err.message });
   }
 });
