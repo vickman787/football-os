@@ -370,8 +370,9 @@ app.all('/api/ai-predict', async (req, res) => {
   // x402 Payment Intercept for OKX.AI bots
   const origin = req.headers.origin || req.headers.referer || '';
   const isFrontend = origin.includes('football-os') || origin.includes('localhost') || origin.includes('vercel.app');
-  const auth = req.headers.authorization;
-  const isL402 = auth && (auth.startsWith('L402') || auth.startsWith('x402'));
+  const auth = req.headers.authorization || '';
+  const xPayment = req.headers['x-payment'] || '';
+  const isL402 = auth.startsWith('L402') || auth.startsWith('x402') || xPayment.length > 0;
 
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
