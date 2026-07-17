@@ -380,10 +380,12 @@ app.all('/api/ai-predict', async (req, res) => {
   if (!isFrontend && !isL402) {
     return res.status(402).json({
       error: 'Payment Required',
+      x402Version: "1.0",
       accepts: [
         {
+          scheme: "erc20",
           network: "196",
-          token: "0x779ded0c9e1022225f8e0630b35a9b54be713736",
+          asset: "0x779ded0c9e1022225f8e0630b35a9b54be713736",
           amount: "1000000",
           payTo: "0xE8f96910a685605A81864CA79904456DF9112D59"
         }
