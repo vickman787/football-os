@@ -370,6 +370,25 @@ app.get('/polymarket/football-markets', footballMarketsHandler);
 
 /* ---------- AI engine ---------- */
 
+async function verifyPayment(authHeader) {
+  if (!authHeader || typeof authHeader !== 'string') return false;
+  const match = authHeader.match(/0x[a-fA-F0-9]{64}/);
+  if (!match) return false;
+  
+  try {
+    const res = await fetch('https://rpc.xlayer.tech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getTransactionReceipt', params: [match[0]] })
+    });
+    const data = await res.json();
+    if (data.result && data.result.status === '0x1') return true;
+  } catch (e) {
+    console.error('[verifyPayment] RPC error:', e.message);
+  }
+  return false;
+}
+
 app.all('/api/ai-predict', async (req, res) => {
   // x402 Payment Intercept for OKX.AI bots
   const origin = req.headers.origin || req.headers.referer || '';
@@ -378,13 +397,21 @@ app.all('/api/ai-predict', async (req, res) => {
   const xPayment = req.headers['x-payment'] || req.headers['payment-signature'] || req.headers['x-payment-signature'] || req.headers['x-payment-authorization'] || '';
   const isL402 = auth.startsWith('L402') || auth.startsWith('x402') || xPayment.length > 0;
 
+  const isMcpProtocol = req.body?.method === 'tools/list' || req.body?.method === 'tools/call';
+
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
 
-  if (!isFrontend && !isL402) {
-    return res.status(402).json({
-      error: 'Payment Required',
+  if (!isFrontend && !isMcpProtocol) {
+    let isValidPayment = false;
+    if (isL402) {
+      isValidPayment = await verifyPayment(auth + " " + xPayment);
+    }
+
+    if (!isValidPayment) {
+      return res.status(402).json({
+        error: 'Payment Required',
       x402Version: "1.0",
       accepts: [
         {
