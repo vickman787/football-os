@@ -424,6 +424,7 @@ app.all('/api/ai-predict', async (req, res) => {
       ]
     });
   }
+}
 
   if (req.method !== 'POST') {
     return res.json({ ok: true, message: 'Endpoint active. POST match data for prediction.' });
