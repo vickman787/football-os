@@ -20,7 +20,11 @@ const liveMatchesCache = {
   ttlMs: 5 * 60 * 1000,
 };
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-payment', 'payment-signature', 'x-payment-signature', 'l402', 'x402'],
+  exposedHeaders: ['x-payment', 'payment-signature', 'x402Version']
+}));
 app.use(express.json());
 
 // Background sync for leaderboard
@@ -371,7 +375,7 @@ app.all('/api/ai-predict', async (req, res) => {
   const origin = req.headers.origin || req.headers.referer || '';
   const isFrontend = origin.includes('football-os') || origin.includes('localhost') || origin.includes('vercel.app');
   const auth = req.headers.authorization || '';
-  const xPayment = req.headers['x-payment'] || '';
+  const xPayment = req.headers['x-payment'] || req.headers['payment-signature'] || req.headers['x-payment-signature'] || req.headers['x-payment-authorization'] || '';
   const isL402 = auth.startsWith('L402') || auth.startsWith('x402') || xPayment.length > 0;
 
   if (req.method === 'OPTIONS') {
