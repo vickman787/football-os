@@ -374,7 +374,7 @@ app.get('/polymarket/football-markets', footballMarketsHandler);
 /* ---------- x402 payment (exact scheme, EIP-3009 settlement) ---------- */
 
 const X402_CHAIN_ID = 196;
-const X402_NETWORK = '196';
+const X402_NETWORK = 'eip155:196'; // CAIP-2 — required by x402 clients' signing step
 const X402_ASSET = '0x779ded0c9e1022225f8e0630b35a9b54be713736'; // USD₮0 on X Layer
 const X402_ASSET_NAME = 'USD₮0';   // EIP-712 domain name (verified against on-chain DOMAIN_SEPARATOR)
 const X402_ASSET_VERSION = '1';
@@ -429,7 +429,8 @@ async function settleX402Payment(xPaymentB64) {
   if (payload?.scheme !== 'exact' || !auth || !signature) {
     return { ok: false, reason: 'unsupported_scheme_or_missing_proof' };
   }
-  if (String(payload?.network) !== X402_NETWORK) {
+  const proofNetwork = String(payload?.network ?? '');
+  if (proofNetwork !== X402_NETWORK && proofNetwork !== String(X402_CHAIN_ID)) {
     return { ok: false, reason: 'wrong_network' };
   }
 
