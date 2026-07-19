@@ -23,8 +23,8 @@ const liveMatchesCache = {
 
 app.use(cors({
   origin: '*',
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-payment'],
-  exposedHeaders: ['x-payment-response']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-payment', 'payment-signature'],
+  exposedHeaders: ['x-payment-response', 'payment-response']
 }));
 app.use(express.json());
 
@@ -423,14 +423,19 @@ async function settleX402Payment(xPaymentB64) {
     return { ok: false, reason: 'invalid_payment_header_encoding' };
   }
 
-  const proof = payload?.payload;
+  // Two wire shapes: wrapped v1 ({x402Version, scheme, network, payload:{authorization, signature}})
+  // and the bare proof ({authorization, signature}) OKX clients send in PAYMENT-SIGNATURE.
+  const proof = payload?.payload ?? payload;
   const auth = proof?.authorization;
   const signature = proof?.signature;
-  if (payload?.scheme !== 'exact' || !auth || !signature) {
-    return { ok: false, reason: 'unsupported_scheme_or_missing_proof' };
+  if (!auth || !signature) {
+    return { ok: false, reason: 'missing_proof' };
   }
-  const proofNetwork = String(payload?.network ?? '');
-  if (proofNetwork !== X402_NETWORK && proofNetwork !== String(X402_CHAIN_ID)) {
+  if (payload?.scheme !== undefined && payload.scheme !== 'exact') {
+    return { ok: false, reason: 'unsupported_scheme' };
+  }
+  const proofNetwork = payload?.network === undefined ? null : String(payload.network);
+  if (proofNetwork !== null && proofNetwork !== X402_NETWORK && proofNetwork !== String(X402_CHAIN_ID)) {
     return { ok: false, reason: 'wrong_network' };
   }
 
@@ -505,7 +510,7 @@ app.all('/api/ai-predict', async (req, res) => {
   // x402 Payment Intercept for OKX.AI bots
   const origin = req.headers.origin || req.headers.referer || '';
   const isFrontend = origin.includes('football-os') || origin.includes('localhost') || origin.includes('vercel.app');
-  const xPayment = req.headers['x-payment'] || '';
+  const xPayment = req.headers['x-payment'] || req.headers['payment-signature'] || '';
 
   const isMcpProtocol = req.body?.method === 'tools/list' || req.body?.method === 'tools/call';
 
@@ -521,12 +526,14 @@ app.all('/api/ai-predict', async (req, res) => {
     if (!settlement.ok) {
       return x402Challenge(res, 'Payment verification failed: ' + settlement.reason);
     }
-    res.set('X-PAYMENT-RESPONSE', Buffer.from(JSON.stringify({
+    const receiptB64 = Buffer.from(JSON.stringify({
       success: true,
       transaction: settlement.txHash,
       network: X402_NETWORK,
       payer: settlement.payer,
-    })).toString('base64'));
+    })).toString('base64');
+    res.set('X-PAYMENT-RESPONSE', receiptB64);
+    res.set('PAYMENT-RESPONSE', receiptB64);
   }
 
   if (req.method !== 'POST') {
