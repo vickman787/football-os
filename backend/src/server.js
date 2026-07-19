@@ -2,6 +2,7 @@ import 'dotenv/config';
 import axios from 'axios';
 import express from 'express';
 import cors from 'cors';
+import { ethers } from 'ethers';
 import {
   isSportApiEnabled,
   getPredictionsFeed,
@@ -22,8 +23,8 @@ const liveMatchesCache = {
 
 app.use(cors({
   origin: '*',
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-payment', 'payment-signature', 'x-payment-signature', 'l402', 'x402'],
-  exposedHeaders: ['x-payment', 'payment-signature', 'x402Version']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-payment'],
+  exposedHeaders: ['x-payment-response']
 }));
 app.use(express.json());
 
@@ -370,32 +371,140 @@ app.get('/polymarket/football-markets', footballMarketsHandler);
 
 /* ---------- AI engine ---------- */
 
-async function verifyPayment(authHeader) {
-  if (!authHeader || typeof authHeader !== 'string') return false;
-  const match = authHeader.match(/0x[a-fA-F0-9]{64}/);
-  if (!match) return false;
-  
+/* ---------- x402 payment (exact scheme, EIP-3009 settlement) ---------- */
+
+const X402_CHAIN_ID = 196;
+const X402_NETWORK = '196';
+const X402_ASSET = '0x779ded0c9e1022225f8e0630b35a9b54be713736'; // USD₮0 on X Layer
+const X402_ASSET_NAME = 'USD₮0';   // EIP-712 domain name (verified against on-chain DOMAIN_SEPARATOR)
+const X402_ASSET_VERSION = '1';
+const X402_AMOUNT = '1000000';     // 1 USD₮0 (6 decimals)
+const X402_PAY_TO = '0xE8f96910a685605A81864CA79904456DF9112D59';
+const X402_RESOURCE = 'https://football-os.onrender.com/api/ai-predict';
+const XLAYER_RPC = process.env.XLAYER_RPC_URL_MAINNET || 'https://rpc.xlayer.tech';
+
+const EIP3009_ABI = [
+  'function transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)',
+  'function authorizationState(address authorizer, bytes32 nonce) view returns (bool)',
+];
+
+function x402Challenge(res, reason) {
+  return res.status(402).json({
+    x402Version: 1,
+    error: reason || 'Payment Required',
+    accepts: [
+      {
+        scheme: 'exact',
+        network: X402_NETWORK,
+        maxAmountRequired: X402_AMOUNT,
+        resource: X402_RESOURCE,
+        description: 'AI Match Predictions — pay per prediction request',
+        mimeType: 'application/json',
+        payTo: X402_PAY_TO,
+        maxTimeoutSeconds: 300,
+        asset: X402_ASSET,
+        extra: { name: X402_ASSET_NAME, version: X402_ASSET_VERSION },
+      },
+    ],
+  });
+}
+
+/**
+ * Verifies an x402 X-PAYMENT header (exact scheme / EIP-3009) and settles it
+ * on-chain via transferWithAuthorization. Replay-safe: the token contract
+ * consumes the authorization nonce, so a proof can only settle once.
+ * Returns { ok: true, txHash } or { ok: false, reason }.
+ */
+async function settleX402Payment(xPaymentB64) {
+  let payload;
   try {
-    const res = await fetch('https://rpc.xlayer.tech', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getTransactionReceipt', params: [match[0]] })
-    });
-    const data = await res.json();
-    if (data.result && data.result.status === '0x1') return true;
-  } catch (e) {
-    console.error('[verifyPayment] RPC error:', e.message);
+    payload = JSON.parse(Buffer.from(xPaymentB64, 'base64').toString('utf8'));
+  } catch {
+    return { ok: false, reason: 'invalid_payment_header_encoding' };
   }
-  return false;
+
+  const proof = payload?.payload;
+  const auth = proof?.authorization;
+  const signature = proof?.signature;
+  if (payload?.scheme !== 'exact' || !auth || !signature) {
+    return { ok: false, reason: 'unsupported_scheme_or_missing_proof' };
+  }
+  if (String(payload?.network) !== X402_NETWORK) {
+    return { ok: false, reason: 'wrong_network' };
+  }
+
+  const { from, to, value, validAfter, validBefore, nonce } = auth;
+  if (!ethers.isAddress(from) || !ethers.isAddress(to)) {
+    return { ok: false, reason: 'invalid_addresses' };
+  }
+  if (to.toLowerCase() !== X402_PAY_TO.toLowerCase()) {
+    return { ok: false, reason: 'wrong_recipient' };
+  }
+  if (BigInt(value) < BigInt(X402_AMOUNT)) {
+    return { ok: false, reason: 'insufficient_amount' };
+  }
+  const now = Math.floor(Date.now() / 1000);
+  if (now <= Number(validAfter) || now >= Number(validBefore)) {
+    return { ok: false, reason: 'authorization_expired_or_not_yet_valid' };
+  }
+
+  // Verify the EIP-712 signature locally before spending gas
+  const domain = {
+    name: X402_ASSET_NAME,
+    version: X402_ASSET_VERSION,
+    chainId: X402_CHAIN_ID,
+    verifyingContract: X402_ASSET,
+  };
+  const types = {
+    TransferWithAuthorization: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'validAfter', type: 'uint256' },
+      { name: 'validBefore', type: 'uint256' },
+      { name: 'nonce', type: 'bytes32' },
+    ],
+  };
+  let recovered;
+  try {
+    recovered = ethers.verifyTypedData(domain, types, { from, to, value, validAfter, validBefore, nonce }, signature);
+  } catch {
+    return { ok: false, reason: 'invalid_signature' };
+  }
+  if (recovered.toLowerCase() !== from.toLowerCase()) {
+    return { ok: false, reason: 'signature_mismatch' };
+  }
+
+  if (!process.env.PRIVATE_KEY) {
+    return { ok: false, reason: 'settlement_wallet_not_configured' };
+  }
+
+  try {
+    const provider = new ethers.JsonRpcProvider(XLAYER_RPC);
+    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+    const token = new ethers.Contract(X402_ASSET, EIP3009_ABI, wallet);
+
+    const used = await token.authorizationState(from, nonce);
+    if (used) return { ok: false, reason: 'authorization_already_used' };
+
+    const sig = ethers.Signature.from(signature);
+    const tx = await token.transferWithAuthorization(
+      from, to, value, validAfter, validBefore, nonce, sig.v, sig.r, sig.s,
+    );
+    const receipt = await tx.wait();
+    if (receipt.status !== 1) return { ok: false, reason: 'settlement_tx_reverted' };
+    return { ok: true, txHash: receipt.hash, payer: from };
+  } catch (e) {
+    console.error('[x402] settlement error:', e.message);
+    return { ok: false, reason: 'settlement_failed: ' + (e.shortMessage || e.message) };
+  }
 }
 
 app.all('/api/ai-predict', async (req, res) => {
   // x402 Payment Intercept for OKX.AI bots
   const origin = req.headers.origin || req.headers.referer || '';
   const isFrontend = origin.includes('football-os') || origin.includes('localhost') || origin.includes('vercel.app');
-  const auth = req.headers.authorization || '';
-  const xPayment = req.headers['x-payment'] || req.headers['payment-signature'] || req.headers['x-payment-signature'] || req.headers['x-payment-authorization'] || '';
-  const isL402 = auth.startsWith('L402') || auth.startsWith('x402') || xPayment.length > 0;
+  const xPayment = req.headers['x-payment'] || '';
 
   const isMcpProtocol = req.body?.method === 'tools/list' || req.body?.method === 'tools/call';
 
@@ -404,27 +513,20 @@ app.all('/api/ai-predict', async (req, res) => {
   }
 
   if (!isFrontend && !isMcpProtocol) {
-    let isValidPayment = false;
-    if (isL402) {
-      isValidPayment = await verifyPayment(auth + " " + xPayment);
+    if (!xPayment) {
+      return x402Challenge(res);
     }
-
-    if (!isValidPayment) {
-      return res.status(402).json({
-        error: 'Payment Required',
-      x402Version: "1.0",
-      accepts: [
-        {
-          scheme: "erc20",
-          network: "196",
-          asset: "0x779ded0c9e1022225f8e0630b35a9b54be713736",
-          amount: "1000000",
-          payTo: "0xE8f96910a685605A81864CA79904456DF9112D59"
-        }
-      ]
-    });
+    const settlement = await settleX402Payment(xPayment);
+    if (!settlement.ok) {
+      return x402Challenge(res, 'Payment verification failed: ' + settlement.reason);
+    }
+    res.set('X-PAYMENT-RESPONSE', Buffer.from(JSON.stringify({
+      success: true,
+      transaction: settlement.txHash,
+      network: X402_NETWORK,
+      payer: settlement.payer,
+    })).toString('base64'));
   }
-}
 
   if (req.method !== 'POST') {
     return res.json({ ok: true, message: 'Endpoint active. POST match data for prediction.' });
