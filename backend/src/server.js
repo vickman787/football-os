@@ -519,8 +519,21 @@ app.all('/api/ai-predict', async (req, res) => {
   }
 
   if (!isFrontend && !isMcpProtocol) {
+    // Validate the request body BEFORE settling payment — EIP-3009 nonces are
+    // single-use, so settling first would burn the payer's funds on a 400.
+    if (req.method === 'POST' && (!req.body?.teamA || !req.body?.teamB)) {
+      return res.status(400).json({
+        error: 'teamA_and_teamB_required',
+        hint: 'Send JSON body { "teamA": "<home team>", "teamB": "<away team>", "matchContext": "<optional>" }. No payment was charged for this request.',
+      });
+    }
     if (!xPayment) {
       return x402Challenge(res);
+    }
+    // Only POST performs paid work — don't burn the payer's authorization
+    // nonce on a GET probe; return the info message with the proof unspent.
+    if (req.method !== 'POST') {
+      return res.json({ ok: true, message: 'Endpoint active. POST match data for prediction. Your payment proof was NOT settled.' });
     }
     const settlement = await settleX402Payment(xPayment);
     if (!settlement.ok) {
