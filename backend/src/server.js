@@ -518,22 +518,34 @@ app.all('/api/ai-predict', async (req, res) => {
     return res.status(204).end();
   }
 
+  // Accept params from the JSON body (POST) or the query string (GET) so
+  // agent clients get a real prediction whichever method they call with.
+  let teamA, teamB, matchContext;
+  let isMcpCall = false;
+  let mcpId = null;
+  if (req.body?.method === 'tools/call' && req.body?.params?.arguments) {
+    isMcpCall = true;
+    mcpId = req.body.id;
+    teamA = req.body.params.arguments.teamA;
+    teamB = req.body.params.arguments.teamB;
+    matchContext = req.body.params.arguments.matchContext;
+  } else {
+    teamA = req.body?.teamA ?? req.query?.teamA;
+    teamB = req.body?.teamB ?? req.query?.teamB;
+    matchContext = req.body?.matchContext ?? req.query?.matchContext;
+  }
+
   if (!isFrontend && !isMcpProtocol) {
-    // Validate the request body BEFORE settling payment — EIP-3009 nonces are
-    // single-use, so settling first would burn the payer's funds on a 400.
-    if (req.method === 'POST' && (!req.body?.teamA || !req.body?.teamB)) {
-      return res.status(400).json({
-        error: 'teamA_and_teamB_required',
-        hint: 'Send JSON body { "teamA": "<home team>", "teamB": "<away team>", "matchContext": "<optional>" }. No payment was charged for this request.',
-      });
-    }
     if (!xPayment) {
       return x402Challenge(res);
     }
-    // Only POST performs paid work — don't burn the payer's authorization
-    // nonce on a GET probe; return the info message with the proof unspent.
-    if (req.method !== 'POST') {
-      return res.json({ ok: true, message: 'Endpoint active. POST match data for prediction. Your payment proof was NOT settled.' });
+    // Validate params BEFORE settling payment — EIP-3009 nonces are
+    // single-use, so settling first would burn the payer's funds on a 400.
+    if (!teamA || !teamB) {
+      return res.status(400).json({
+        error: 'teamA_and_teamB_required',
+        hint: 'POST JSON { "teamA": "<home team>", "teamB": "<away team>", "matchContext": "<optional>" } or GET ?teamA=...&teamB=... — your payment proof was NOT settled; resend it with valid params.',
+      });
     }
     const settlement = await settleX402Payment(xPayment);
     if (!settlement.ok) {
@@ -547,10 +559,6 @@ app.all('/api/ai-predict', async (req, res) => {
     })).toString('base64');
     res.set('X-PAYMENT-RESPONSE', receiptB64);
     res.set('PAYMENT-RESPONSE', receiptB64);
-  }
-
-  if (req.method !== 'POST') {
-    return res.json({ ok: true, message: 'Endpoint active. POST match data for prediction.' });
   }
 
   // MCP compatibility: handle tools/list discovery
@@ -578,27 +586,15 @@ app.all('/api/ai-predict', async (req, res) => {
     });
   }
 
-  // Parse arguments depending on if it's an MCP tool call or standard REST
-  let teamA, teamB, matchContext;
-  let isMcpCall = false;
-  let mcpId = null;
-
-  if (req.body?.method === 'tools/call' && req.body?.params?.arguments) {
-    isMcpCall = true;
-    mcpId = req.body.id;
-    teamA = req.body.params.arguments.teamA;
-    teamB = req.body.params.arguments.teamB;
-    matchContext = req.body.params.arguments.matchContext;
-  } else {
-    teamA = req.body?.teamA;
-    teamB = req.body?.teamB;
-    matchContext = req.body?.matchContext;
-  }
-
   if (!teamA || !teamB) {
+    // Only frontend/MCP traffic reaches here without params — paid callers
+    // were already rejected (unspent) or challenged above.
     const errorMsg = 'teamA_and_teamB_required';
     if (isMcpCall) {
       return res.json({ jsonrpc: "2.0", id: mcpId, error: { code: -32602, message: errorMsg } });
+    }
+    if (req.method !== 'POST') {
+      return res.json({ ok: true, message: 'Endpoint active. POST JSON { teamA, teamB } or GET ?teamA=...&teamB=... for a prediction.' });
     }
     return res.status(400).json({ error: errorMsg });
   }
